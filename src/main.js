@@ -1,26 +1,35 @@
 import Phaser from "phaser";
 import { SpinePlugin } from "@esotericsoftware/spine-phaser-v4";
+import { Hero } from "./hero";
 
-/** Portrait 9:16 — same aspect as Variant games (e.g. 720×1280). */
 const VIEW_W = 720;
 const VIEW_H = 1280;
-
-/** Total fall distance — character starts near top, floor at bottom. */
-const WORLD_H = 1000;
-
-/** Wall thickness on each side. */
+const WORLD_H = 20000;
 const WALL_W = 40;
 
-/** Playable area between walls. */
-const PLAY_W = VIEW_W - WALL_W * 2;
+const CHUNK_H = VIEW_H;
+const CHUNKS_AHEAD = 2;
+const CHUNKS_BEHIND = 2;
+
+const ROCK_LENGTH = 120;
+const ROCK_THICKNESS = 18;
+const ROCK_GAP = 250;
+
+const CAT_WALL = 0x0001;
+const CAT_RAGDOLL = 0x0002;
+const CAT_ROCK = 0x0004;
+const CAT_FLOOR = 0x0008;
+
+const MOVE_FORCE = 0.005;
 
 class FallScene extends Phaser.Scene {
   constructor() {
     super({ key: "FallScene" });
     this.hero = null;
-    this.proxy = null;
     this.survivalTime = 0;
     this.isGameOver = false;
+    this.generatedChunks = new Map();
+    this.lastChunkIndex = -1;
   }
 
   preload() {
@@ -29,10 +38,7 @@ class FallScene extends Phaser.Scene {
   }
 
   create() {
-    // --- Physics world bounds (keeps proxy inside the shaft) ---
-    this.physics.world.setBounds(WALL_W, 0, PLAY_W, WORLD_H);
-
-    // --- Visual walls ---
+    // --- Walls (visual) ---
     this.add.rectangle(WALL_W / 2, WORLD_H / 2, WALL_W, WORLD_H, 0x444466);
     this.add.rectangle(
       VIEW_W - WALL_W / 2,
@@ -42,33 +48,47 @@ class FallScene extends Phaser.Scene {
       0x444466,
     );
 
-    // --- Floor ---
-    this.floor = this.add.rectangle(
-      VIEW_W / 2,
-      WORLD_H - 5,
-      VIEW_W,
-      10,
-      0x888888,
+    // --- Walls (physics) ---
+    const wallFilter = { category: CAT_WALL, mask: CAT_RAGDOLL };
+    this.matter.add.rectangle(WALL_W / 2, WORLD_H / 2, WALL_W, WORLD_H, {
+      isStatic: true,
+      label: "wall",
+      collisionFilter: wallFilter,
+    });
+    this.matter.add.rectangle(
+      VIEW_W - WALL_W / 2,
+      WORLD_H / 2,
+      WALL_W,
+      WORLD_H,
+      { isStatic: true, label: "wall", collisionFilter: wallFilter },
     );
-    this.physics.add.existing(this.floor, true); // static body
 
-    // --- Proxy (invisible physics body) ---
-    this.proxy = this.add.rectangle(VIEW_W / 2, 200, 40, 80, 0xff0000, 0);
-    this.physics.add.existing(this.proxy);
-    this.proxy.body.setGravityY(300);
-    this.proxy.body.setMaxVelocityY(600);
-    this.proxy.body.setDragX(200);
-    this.proxy.body.setCollideWorldBounds(true);
+    // --- Floor ---
+    this.add.rectangle(VIEW_W / 2, WORLD_H - 5, VIEW_W, 10, 0x888888);
+    this.matter.add.rectangle(VIEW_W / 2, WORLD_H - 5, VIEW_W, 10, {
+      isStatic: true,
+      label: "floor",
+      collisionFilter: { category: CAT_FLOOR, mask: CAT_RAGDOLL },
+    });
 
-    // Floor collision → game over
-    this.physics.add.collider(this.proxy, this.floor, () => this.endGame());
+    // --- Hero ---
+    this.hero = new Hero(this, VIEW_W / 2, 200);
 
-    // --- Spine character ---
-    this.hero = this.add.spine(VIEW_W / 2, 200, "man", "manAtlas");
-    this.hero.setDepth(10);
-    this.hero.setScale(0.28);
-    this.hero.animationState.data.defaultMix = 0.15;
-    this.hero.animationState.setAnimation(0, "FallPose", true);
+    // --- Collision: floor = game over ---
+    this.matter.world.on("collisionstart", (event) => {
+      if (this.isGameOver) return;
+      for (const pair of event.pairs) {
+        const a = pair.bodyA.label;
+        const b = pair.bodyB.label;
+        if (
+          (a === "floor" && this.hero.ownsLabel(b)) ||
+          (b === "floor" && this.hero.ownsLabel(a))
+        ) {
+          this.endGame();
+          break;
+        }
+      }
+    });
 
     // --- Camera ---
     this.cameras.main.setBounds(0, 0, VIEW_W, WORLD_H);
@@ -76,7 +96,7 @@ class FallScene extends Phaser.Scene {
     // --- Input ---
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    // --- UI (fixed to camera) ---
+    // --- UI ---
     this.timerText = this.add
       .text(VIEW_W / 2, 20, "0.00s", {
         fontSize: "32px",
@@ -84,7 +104,8 @@ class FallScene extends Phaser.Scene {
         fontFamily: "system-ui, sans-serif",
       })
       .setOrigin(0.5, 0)
-      .setScrollFactor(0);
+      .setScrollFactor(0)
+      .setDepth(50);
 
     this.gameOverText = this.add
       .text(VIEW_W / 2, VIEW_H / 2, "", {
@@ -97,46 +118,114 @@ class FallScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(100)
       .setVisible(false);
+
+    this.updateChunks();
   }
+
+  // ==================== CHUNKS ====================
+
+  generateChunk(chunkIndex) {
+    if (this.generatedChunks.has(chunkIndex)) return;
+    const objects = [];
+    const chunkTop = chunkIndex * CHUNK_H;
+    const chunkBottom = chunkTop + CHUNK_H;
+
+    if (chunkIndex <= 0 || chunkTop >= WORLD_H - 50) {
+      this.generatedChunks.set(chunkIndex, objects);
+      return;
+    }
+
+    let y = chunkTop + Phaser.Math.Between(50, ROCK_GAP);
+    while (y < chunkBottom - 50 && y < WORLD_H - 100) {
+      const fromLeft = Math.random() > 0.5;
+      const angleDeg = Phaser.Math.Between(20, 50);
+      const angleRad = Phaser.Math.DegToRad(angleDeg);
+      const startX = fromLeft ? WALL_W : VIEW_W - WALL_W;
+      const dx = (fromLeft ? 1 : -1) * Math.cos(angleRad) * ROCK_LENGTH;
+      const dy = Math.sin(angleRad) * ROCK_LENGTH;
+      const cx = startX + dx / 2;
+      const cy = y + dy / 2;
+      const rotation = fromLeft ? angleRad : Math.PI - angleRad;
+
+      const visual = this.add.rectangle(
+        cx,
+        cy,
+        ROCK_LENGTH,
+        ROCK_THICKNESS,
+        0x777799,
+      );
+      visual.setRotation(rotation);
+
+      const rockBody = this.matter.add.rectangle(
+        cx,
+        cy,
+        ROCK_LENGTH,
+        ROCK_THICKNESS,
+        {
+          isStatic: true,
+          label: "rock",
+          angle: rotation,
+          collisionFilter: { category: CAT_ROCK, mask: CAT_RAGDOLL },
+        },
+      );
+
+      objects.push({ visual, rockBody });
+      y += Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
+    }
+
+    this.generatedChunks.set(chunkIndex, objects);
+  }
+
+  destroyChunk(chunkIndex) {
+    const objects = this.generatedChunks.get(chunkIndex);
+    if (!objects) return;
+    objects.forEach(({ visual, rockBody }) => {
+      visual.destroy();
+      this.matter.world.remove(rockBody);
+    });
+    this.generatedChunks.delete(chunkIndex);
+  }
+
+  updateChunks() {
+    const currentChunk = Math.floor(this.hero.y / CHUNK_H);
+    if (currentChunk === this.lastChunkIndex) return;
+    this.lastChunkIndex = currentChunk;
+
+    for (
+      let i = currentChunk - CHUNKS_BEHIND;
+      i <= currentChunk + CHUNKS_AHEAD;
+      i++
+    ) {
+      this.generateChunk(i);
+    }
+    for (const [index] of this.generatedChunks) {
+      if (index < currentChunk - CHUNKS_BEHIND) this.destroyChunk(index);
+    }
+  }
+
+  // ==================== UPDATE ====================
 
   update(_, deltaMs) {
     if (this.isGameOver) return;
 
-    const dt = deltaMs / 1000;
-    this.survivalTime += dt;
+    this.survivalTime += deltaMs / 1000;
     this.timerText.setText(this.survivalTime.toFixed(2) + "s");
 
-    // --- Input ---
-    if (this.cursors.left.isDown) {
-      this.proxy.body.setVelocityX(-250);
-      this.hero.skeleton.scaleX = -Math.abs(this.hero.skeleton.scaleX);
-    } else if (this.cursors.right.isDown) {
-      this.proxy.body.setVelocityX(250);
-      this.hero.skeleton.scaleX = Math.abs(this.hero.skeleton.scaleX);
-    }
+    if (this.cursors.left.isDown) this.hero.pushLeft(MOVE_FORCE);
+    else if (this.cursors.right.isDown) this.hero.pushRight(MOVE_FORCE);
 
-    // --- Sync Spine to proxy ---
-    this.hero.x = this.proxy.x;
-    this.hero.y = this.proxy.y;
+    this.hero.update();
 
-    // --- Camera follows proxy manually ---
-    this.cameras.main.scrollY = this.proxy.y - VIEW_H * 0.4;
+    this.cameras.main.scrollY = this.hero.y - VIEW_H * 0.4;
+
+    this.updateChunks();
   }
+
+  // ==================== GAME OVER ====================
 
   endGame() {
     if (this.isGameOver) return;
     this.isGameOver = true;
-
-    this.proxy.body.setVelocity(0, 0);
-    this.proxy.body.setGravityY(0);
-
-    const collapse = this.hero.animationState.setAnimation(
-      0,
-      "KnockOver",
-      false,
-    );
-    collapse.timeScale = 3;
-
     this.gameOverText.setText(
       "GAME OVER\n" + this.survivalTime.toFixed(2) + "s",
     );
@@ -155,10 +244,10 @@ const config = {
     scene: [{ key: "SpinePlugin", plugin: SpinePlugin, mapping: "spine" }],
   },
   physics: {
-    default: "arcade",
-    arcade: {
-      gravity: { y: 0 }, // gravity set per-body, not globally
-      debug: false,
+    default: "matter",
+    matter: {
+      gravity: { y: 1 },
+      debug: true,
     },
   },
   scale: {
