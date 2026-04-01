@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -17,10 +17,47 @@
         justify-content: center;
         min-height: 100%;
       }
+      #controls {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 100;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        color: #eaeaea;
+      }
+      #controls label {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      #controls select {
+        background: #2d2d44;
+        color: #eaeaea;
+        border: 1px solid #556;
+        border-radius: 4px;
+        padding: 3px 6px;
+      }
     </style>
   </head>
   <body>
+    <div id="controls">
+      <label
+        >Default animation
+        <select id="selectDefault"></select>
+      </label>
+      <label
+        >Space animation
+        <select id="selectSpace"></select>
+      </label>
+    </div>
     <div id="app"></div>
+
+    <!-- Swap these two lines to switch between demo and game -->
     <script type="module" src="/src/main.js"></script>
+    <!-- <script type="module" src="/src/demo.js"></script> -->
   </body>
 </html>
