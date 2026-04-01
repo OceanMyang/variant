@@ -6,7 +6,7 @@ const VIEW_W = 720;
 const VIEW_H = 1280;
 
 /** Total fall distance — character starts near top, floor at bottom. */
-const WORLD_H = 20000;
+const WORLD_H = 1000;
 
 /** Wall thickness on each side. */
 const WALL_W = 40;
@@ -89,7 +89,7 @@ class FallScene extends Phaser.Scene {
     this.gameOverText = this.add
       .text(VIEW_W / 2, VIEW_H / 2, "", {
         fontSize: "48px",
-        color: "#ff4444",
+        color: "#ffffff",
         fontFamily: "system-ui, sans-serif",
         align: "center",
       })
@@ -130,7 +130,12 @@ class FallScene extends Phaser.Scene {
     this.proxy.body.setVelocity(0, 0);
     this.proxy.body.setGravityY(0);
 
-    this.hero.animationState.setAnimation(0, "DramaticCollapse", false);
+    const collapse = this.hero.animationState.setAnimation(
+      0,
+      "KnockOver",
+      false,
+    );
+    collapse.timeScale = 3;
 
     this.gameOverText.setText(
       "GAME OVER\n" + this.survivalTime.toFixed(2) + "s",

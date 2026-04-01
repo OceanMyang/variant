@@ -7,7 +7,7 @@ const VIEW_H = 1280;
 
 /** Shared Variant man rig — see public/spine/man/animations.json & ANIMATIONS.md */
 const DEMO_WALK = "Walk";
-const DEMO_JUMP = "VictoryJump";
+const DEMO_JUMP = "Jump";
 
 // Show controls and populate animation selects
 document.getElementById("controls").style.display = "flex";
