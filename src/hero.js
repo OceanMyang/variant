@@ -12,8 +12,8 @@ export class Hero {
     this.spine = null;
 
     this._createSpine(x, y);
-    this.setup();
     this._createBody(x + 20, y);
+    this.setup();
   }
 
   get x() {
@@ -80,6 +80,28 @@ export class Hero {
       Math.max(0, this.leftFibula.angle - Math.PI / 2),
     );
 
+    // Right arm
+    const rightHandUp = this.spine.skeleton.findBone("rightHandUp");
+    rightHandUp.rotation = -Phaser.Math.RadToDeg(
+      this.rightUpperArm.angle - this.torsoBody.angle,
+    );
+
+    const rightHandDown = this.spine.skeleton.findBone("rightHandDown");
+    rightHandDown.rotation = -Phaser.Math.RadToDeg(
+      this.rightLowerArm.angle - this.rightUpperArm.angle,
+    );
+
+    // Left arm
+    const leftHandUp = this.spine.skeleton.findBone("leftHandUp"); // FIX: was "rightHandUp"
+    leftHandUp.rotation = -Phaser.Math.RadToDeg(
+      this.leftUpperArm.angle - this.torsoBody.angle,
+    );
+
+    const leftHandDown = this.spine.skeleton.findBone("leftHandDown"); // FIX: was "rightHandDown"
+    leftHandDown.rotation = -Phaser.Math.RadToDeg(
+      this.leftLowerArm.angle - this.leftUpperArm.angle,
+    );
+
     this.spine.skeleton.updateWorldTransform(Physics.update);
   }
 
@@ -98,6 +120,11 @@ export class Hero {
       mask: CAT_WALL | CAT_RAGDOLL | CAT_ROCK | CAT_FLOOR,
     };
 
+    const handFilter = {
+      category: CAT_RAGDOLL,
+      mask: CAT_WALL | CAT_ROCK | CAT_FLOOR,
+    };
+
     const hips = M.Bodies.rectangle(x, y, 40, 20, {
       label: "hips",
       collisionFilter: 0,
@@ -109,33 +136,60 @@ export class Hero {
     });
 
     const rightLeg = M.Bodies.rectangle(x - 10, y, 20, 70, {
+      // FIX: y+35
       label: "rightFibula",
       collisionFilter: filter,
     });
 
-    const rightFibula = M.Bodies.rectangle(x - 10, y, 20, 70, {
+    const rightFibula = M.Bodies.rectangle(x - 10, y + 60, 20, 70, {
+      // FIX: y+105
       label: "rightLeg",
       collisionFilter: filter,
     });
 
-    const rightFoot = M.Bodies.rectangle(x - 10, y, 20, 10, {
+    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 20, 10, {
+      // FIX: y+180
       label: "rightFoot",
       collisionFilter: 0,
     });
 
     const leftLeg = M.Bodies.rectangle(x + 10, y, 20, 70, {
+      // FIX: y+35
       label: "leftLeg",
       collisionFilter: filter,
     });
 
-    const leftFibula = M.Bodies.rectangle(x + 10, y, 20, 70, {
+    const leftFibula = M.Bodies.rectangle(x + 10, y + 60, 20, 70, {
+      // FIX: y+105
       label: "leftFibula",
       collisionFilter: filter,
     });
 
-    const leftFoot = M.Bodies.rectangle(x + 10, y, 20, 10, {
+    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 20, 10, {
+      // FIX: y+180
       label: "leftFoot",
       collisionFilter: 0,
+    });
+
+    const rightUpperArm = M.Bodies.rectangle(x - 20, y - 80, 15, 50, {
+      label: "rightUpperArm",
+      collisionFilter: handFilter,
+    });
+
+    const rightLowerArm = M.Bodies.rectangle(x - 20, y - 100, 12, 45, {
+      label: "rightLowerArm",
+      collisionFilter: handFilter,
+    });
+
+    const leftUpperArm = M.Bodies.rectangle(x + 20, y - 80, 15, 50, {
+      // FIX: y-120
+      label: "leftUpperArm",
+      collisionFilter: handFilter,
+    });
+
+    const leftLowerArm = M.Bodies.rectangle(x + 20, y - 100, 12, 45, {
+      label: "leftLowerArm",
+      collisionFilter: handFilter,
     });
 
     this.scene.matter.world.add(hips);
@@ -146,6 +200,10 @@ export class Hero {
     this.scene.matter.world.add(leftLeg);
     this.scene.matter.world.add(leftFibula);
     this.scene.matter.world.add(leftFoot);
+    this.scene.matter.world.add(rightUpperArm);
+    this.scene.matter.world.add(rightLowerArm);
+    this.scene.matter.world.add(leftUpperArm);
+    this.scene.matter.world.add(leftLowerArm);
 
     this.scene.matter.add.constraint(hips, torso, 0, 1, {
       pointA: { x: 0, y: -20 },
@@ -189,11 +247,41 @@ export class Hero {
       damping: 0.1,
     });
 
+    // Right arm: attach to top of torso
+    this.scene.matter.add.constraint(torso, rightUpperArm, 0, 1, {
+      pointA: { x: -30, y: -20 },
+      pointB: { x: 0, y: 20 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(rightUpperArm, rightLowerArm, 0, 0.1, {
+      pointA: { x: 0, y: -20 },
+      pointB: { x: 0, y: 20 },
+      damping: 0.1,
+    });
+
+    // Left arm: attach to top of torso
+    this.scene.matter.add.constraint(torso, leftUpperArm, 0, 1, {
+      pointA: { x: 30, y: -20 },
+      pointB: { x: 0, y: 20 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(leftUpperArm, leftLowerArm, 0, 0.1, {
+      pointA: { x: 0, y: -20 },
+      pointB: { x: 0, y: 20 },
+      damping: 0.1,
+    });
+
     this.hipsBody = hips;
     this.torsoBody = torso;
     this.rightLeg = rightLeg;
     this.rightFibula = rightFibula;
     this.leftLeg = leftLeg;
     this.leftFibula = leftFibula;
+    this.rightUpperArm = rightUpperArm;
+    this.rightLowerArm = rightLowerArm;
+    this.leftUpperArm = leftUpperArm;
+    this.leftLowerArm = leftLowerArm;
   }
 }

@@ -16,6 +16,6 @@ export const CAT_WALL = 0x0001;
 export const CAT_ROCK = 0x0002;
 export const CAT_FLOOR = 0x0004;
 export const CAT_RAGDOLL = 0x0008;
-export const CAT_LEG = 0x0010;
+export const CAT_HAND = 0x0010;
 
 export const MOVE_FORCE = 0.005;
