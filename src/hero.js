@@ -37,9 +37,91 @@ export class Hero {
 
   setup() {
     this.isEating = false;
+    this.isGrabbing = false;
+    this.stamina = 1; // 0–1
+    this.grabTimer = 0; // hard 5s limit
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
     }
+  }
+
+  startGrabbing(targetX, targetY, side = "right") {
+    if (this.isGrabbing || this.isEating) return;
+    this.isGrabbing = true;
+    this.stamina = 1;
+    this.grabTimer = 0;
+    this.grabSide = side;
+
+    // Flip skeleton for left wall
+    this.spine.skeleton.scaleX =
+      side === "left"
+        ? -Math.abs(this.spine.skeleton.scaleX)
+        : Math.abs(this.spine.skeleton.scaleX);
+
+    // Store grab position — spine will render here while grabbing
+    this.grabX = targetX;
+    this.grabY = targetY;
+
+    const M = Phaser.Physics.Matter.Matter;
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, true);
+    }
+
+    this.spine.skeleton.setToSetupPose();
+
+    // Apply FacepalmDouble at 25% of its duration, then clear the track
+    // so preUpdate has nothing to apply and bones stay frozen at this pose
+    const anim = this.spine.skeleton.data.findAnimation("FacepalmDouble");
+    const entry = this.spine.animationState.setAnimation(
+      0,
+      "FacepalmDouble",
+      false,
+    );
+    entry.mixDuration = 0;
+    this.spine.animationState.update(anim.duration * 0.25);
+    this.spine.animationState.apply(this.spine.skeleton);
+    this.spine.skeleton.updateWorldTransform(Physics.update);
+    this.spine.animationState.clearTrack(0);
+  }
+
+  // Each space press restores stamina — increment shrinks as time approaches 5s
+  onSpacePressed() {
+    if (!this.isGrabbing) return;
+    const increment = 0.01 + Math.max(0, 0.09 * (1 - this.grabTimer / 5));
+    this.stamina = Math.min(1, this.stamina + increment);
+  }
+
+  updateGrabbing(deltaMs) {
+    if (!this.isGrabbing) return;
+
+    const dt = deltaMs / 1000;
+    const DRAIN_RATE = 0.35; // empties in ~2.9s without pressing
+
+    this.stamina -= DRAIN_RATE * dt;
+    this.grabTimer += dt;
+
+    if (this.stamina <= 0) {
+      this.stamina = 0;
+      this.stopGrabbing();
+    }
+  }
+
+  stopGrabbing() {
+    this.isGrabbing = false;
+
+    // Reset skeleton flip
+    this.spine.skeleton.scaleX = Math.abs(this.spine.skeleton.scaleX);
+
+    const M = Phaser.Physics.Matter.Matter;
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, false);
+    }
+
+    for (const ik of this.spine.skeleton.ikConstraints) {
+      ik.mix = 0;
+    }
+
+    this.spine.animationState.setEmptyAnimation(0, 0);
   }
 
   startEating() {
@@ -59,7 +141,10 @@ export class Hero {
     // Put the chicken leg into the food slot
     const skeleton = this.spine.skeleton;
     const slot = skeleton.findSlot("foodSlot");
-    const attachment = skeleton.getAttachmentByName("foodSlot", "skin/food/chicken leg");
+    const attachment = skeleton.getAttachmentByName(
+      "foodSlot",
+      "skin/food/chicken leg",
+    );
     if (slot && attachment) slot.setAttachment(attachment);
 
     // Play Eat animation once, then return to ragdoll (no crossfade from ragdoll state)
@@ -101,6 +186,14 @@ export class Hero {
 
   update() {
     if (!this.spine?.skeleton) return;
+
+    // While grabbing, pin spine to the katana position instead of hips
+    if (this.isGrabbing) {
+      const xOffset = this.grabSide === "left" ? 80 : -80;
+      this.spine.x = this.grabX + xOffset;
+      this.spine.y = this.grabY + 300;
+      return;
+    }
 
     // Hips body is the root of the spine
     this.spine.x = this.hips.position.x;

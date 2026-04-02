@@ -22,7 +22,7 @@ class FallScene extends Phaser.Scene {
   constructor() {
     super({ key: "FallScene" });
     this.hero = null;
-    this.score = 0;
+    this.survivedTime = 0;
     this.isGameOver = false;
     this.generatedChunks = new Map();
     this.lastChunkIndex = -1;
@@ -32,6 +32,7 @@ class FallScene extends Phaser.Scene {
     this.load.spineJson("man", "/spine/man/skeleton.json");
     this.load.spineAtlas("manAtlas", "/spine/man/skeleton.atlas", true);
     this.load.image("chicken", "/spine/man/skeleton_12.png");
+    this.load.image("katana", "/spine/man/skeleton_14.png");
   }
 
   create() {
@@ -89,6 +90,18 @@ class FallScene extends Phaser.Scene {
           this._collectChicken(chickenBody);
           break;
         }
+
+        // Katana = grab
+        if (
+          !this.hero.isGrabbing &&
+          !this.hero.isEating &&
+          ((a === "katana" && this.hero.ownsLabel(b)) ||
+            (b === "katana" && this.hero.ownsLabel(a)))
+        ) {
+          const katanaBody = a === "katana" ? pair.bodyA : pair.bodyB;
+          this._collectKatana(katanaBody);
+          break;
+        }
       }
     });
 
@@ -99,6 +112,10 @@ class FallScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => {
       if (this.isGameOver) return;
+      if (this.hero?.isGrabbing) {
+        this.hero.onSpacePressed();
+        return;
+      }
       if (this.matter.world.enabled) {
         this.matter.world.pause();
         this.pauseText.setVisible(true);
@@ -110,7 +127,7 @@ class FallScene extends Phaser.Scene {
 
     // --- UI ---
     this.timerText = this.add
-      .text(VIEW_W / 2, 20, "Score: 0", {
+      .text(VIEW_W / 2, 20, "", {
         fontSize: "32px",
         color: "#ffffff",
         fontFamily: "system-ui, sans-serif",
@@ -141,6 +158,26 @@ class FallScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(100)
+      .setVisible(false);
+
+    // Circular stamina bar shown while grabbing katana
+    this.staminaGraphics = this.add
+      .graphics()
+      .setScrollFactor(0)
+      .setDepth(60)
+      .setVisible(false);
+
+    this.staminaLabel = this.add
+      .text(0, 0, "SPACE", {
+        fontSize: "18px",
+        color: "#ffffff",
+        fontFamily: "system-ui, sans-serif",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(61)
       .setVisible(false);
 
     this.updateChunks();
@@ -249,12 +286,62 @@ class FallScene extends Phaser.Scene {
       y += spikeH + Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
     }
 
+    // 30% chance to spawn one katana on a wall, avoiding rock y-ranges
+    if (Math.random() < 0.5) {
+      const side = Math.random() < 0.5 ? "left" : "right";
+      const bladeLen = 80;
+      let ky;
+      let attempts = 0;
+      do {
+        ky = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+        attempts++;
+      } while (
+        attempts < 10 &&
+        objects.some(
+          (o) =>
+            o.rockBody &&
+            ky >= o.rockBody.bounds.min.y - 60 &&
+            ky <= o.rockBody.bounds.max.y + 60,
+        )
+      );
+
+      // Anchor image center closer to the handle so blade is mostly inside wall
+      const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
+
+      // Blade faces wall, handle sticks into playfield
+      // Image: handle on left, tip on right at native resolution
+      // Left wall  → flip so tip points left (into wall), handle points right
+      // Right wall → no flip, tip points right (into wall), handle points left
+      const scale = 0.18;
+      const angleDeg = side === "left" ? -15 : 15;
+      const kVisual = this.add
+        .image(kx, ky, "katana")
+        .setScale(scale)
+        .setAngle(angleDeg)
+        .setFlipX(side === "left")
+        .setDepth(8);
+
+      const M = Phaser.Physics.Matter.Matter;
+      const katanaBody = M.Bodies.rectangle(kx, ky, 180, 20, {
+        isStatic: true,
+        isSensor: true,
+        label: "katana",
+        angle: Phaser.Math.DegToRad(angleDeg),
+      });
+      this.matter.world.add(katanaBody);
+
+      objects.push({ visual: kVisual, katanaBody });
+    }
+
     // 40% chance to spawn one chicken per chunk
     if (Math.random() < 0.4) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
 
-      const visual = this.add.image(cx, cy, "chicken").setScale(0.12).setDepth(8);
+      const visual = this.add
+        .image(cx, cy, "chicken")
+        .setScale(0.12)
+        .setDepth(8);
 
       const M = Phaser.Physics.Matter.Matter;
       const chickenBody = M.Bodies.circle(cx, cy, 40, {
@@ -273,10 +360,11 @@ class FallScene extends Phaser.Scene {
   destroyChunk(chunkIndex) {
     const objects = this.generatedChunks.get(chunkIndex);
     if (!objects) return;
-    objects.forEach(({ visual, rockBody, chickenBody }) => {
+    objects.forEach(({ visual, rockBody, chickenBody, katanaBody }) => {
       visual.destroy();
       if (rockBody) this.matter.world.remove(rockBody);
       if (chickenBody) this.matter.world.remove(chickenBody);
+      if (katanaBody) this.matter.world.remove(katanaBody);
     });
     this.generatedChunks.delete(chunkIndex);
   }
@@ -304,17 +392,72 @@ class FallScene extends Phaser.Scene {
     if (this.isGameOver) return;
     if (!this.matter.world.enabled) return;
 
-    this.score += deltaMs / 1000;
-    this.timerText.setText("Score: " + Math.floor(this.score * 100));
+    this.survivedTime += deltaMs / 1000;
+    this.timerText.setText(`Your survived ${this.survivedTime.toFixed(2)}s.\n`);
 
     if (this.cursors.left.isDown) this.hero.pushLeft(MOVE_FORCE);
     else if (this.cursors.right.isDown) this.hero.pushRight(MOVE_FORCE);
 
     this.hero.update();
+    this.hero.updateGrabbing(deltaMs);
+    this._updateStaminaUI();
 
     this.cameras.main.scrollY = this.hero.y - VIEW_H * 0.4;
 
     this.updateChunks();
+  }
+
+  // ==================== STAMINA UI ====================
+
+  _updateStaminaUI() {
+    const grabbing = this.hero.isGrabbing;
+    this.staminaGraphics.setVisible(grabbing);
+    this.staminaLabel.setVisible(grabbing);
+    if (!grabbing) return;
+
+    // Position above the hero in screen space
+    const sx = this.hero.x - this.cameras.main.scrollX;
+    const sy = this.hero.y - this.cameras.main.scrollY - 220;
+    const R = 38;
+
+    this.staminaLabel.setPosition(sx, sy);
+
+    const g = this.staminaGraphics;
+    g.clear();
+
+    // Dark background circle
+    g.fillStyle(0x000000, 0.55);
+    g.fillCircle(sx, sy, R);
+
+    // Background ring
+    g.lineStyle(7, 0x444444, 1);
+    g.strokeCircle(sx, sy, R);
+
+    // Stamina arc — clockwise from top
+    const stamina = this.hero.stamina;
+    const color =
+      stamina > 0.5 ? 0x44dd88 : stamina > 0.25 ? 0xffaa00 : 0xff3333;
+    g.lineStyle(7, color, 1);
+    g.beginPath();
+    g.arc(
+      sx,
+      sy,
+      R,
+      -Math.PI / 2, // start: top
+      -Math.PI / 2 + stamina * Math.PI * 2, // end: clockwise
+      false,
+    );
+    g.strokePath();
+  }
+
+  // ==================== KATANA ====================
+
+  _collectKatana(katanaBody) {
+    // Remove collider but keep visual — hero teleports to it
+    this.matter.world.remove(katanaBody);
+    const { x, y } = katanaBody.position;
+    const side = x < VIEW_W / 2 ? "left" : "right";
+    this.hero.startGrabbing(x, y, side);
   }
 
   // ==================== CHICKEN ====================
@@ -339,15 +482,16 @@ class FallScene extends Phaser.Scene {
     this.isGameOver = true;
     this.timerText.setVisible(false);
     if (headHit) {
-      this.score = 0;
+      this.survivedTime = 0;
       this.gameOverText.setText(
         "Oops. You hit your head.\n" +
-          "Your survival score: " +
-          Math.floor(this.score * 100),
+          `Your survived ${this.survivedTime.toFixed(2)}s.\n`,
       );
     } else {
       this.gameOverText.setText(
-        "GAME OVER\n" + "Your survival score: " + Math.floor(this.score * 100),
+        "GAME OVER\n" +
+          `Your survived ${this.survivedTime.toFixed(2)}s.\n` +
+          "Try survive longer next time!",
       );
     }
     this.gameOverText.setVisible(true);
