@@ -15,6 +15,7 @@ export class Hero {
     this.spine = null;
 
     this._createSpine(x, y);
+    this.setup();
     this._createBody(x + 20, y);
   }
 
@@ -36,6 +37,12 @@ export class Hero {
     if (this.torsoBody) this.torsoBody.force.x += force;
   }
 
+  setup() {
+    for (const ik of this.spine.skeleton.ikConstraints) {
+      ik.mix = 0;
+    }
+  }
+
   update() {
     if (!this.spine?.skeleton) return;
 
@@ -45,9 +52,21 @@ export class Hero {
 
     // Drive torsoBone rotation from body angle
     const torso = this.spine.skeleton.findBone("torsoBone");
-    if (torso) {
-      torso.rotation = -Phaser.Math.RadToDeg(this.torsoBody.angle) + 90;
-    }
+    torso.rotation = -Phaser.Math.RadToDeg(this.torsoBody.angle) + 90;
+
+    const rightLeg = this.spine.skeleton.findBone("RightHipBone");
+    rightLeg.rotation = -Phaser.Math.RadToDeg(
+      this.rightLeg.angle - this.torsoBody.angle,
+    );
+
+    const rightFibula = this.spine.skeleton.findBone("RightFibula");
+    console.log(this.rightFibula.angle - this.rightLeg.angle);
+    rightFibula.rotation = -Phaser.Math.RadToDeg(
+      Math.max(0, this.rightFibula.angle - this.rightLeg.angle),
+    );
+
+    const rightFeetBone = this.spine.skeleton.findBone("rightFeetBone");
+    rightFeetBone.rotation = -Phaser.Math.RadToDeg(this.rightFibula.angle) + 90;
 
     this.spine.skeleton.updateWorldTransform(Physics.update);
   }
@@ -64,11 +83,12 @@ export class Hero {
 
     const filter = {
       category: CAT_RAGDOLL,
-      mask: CAT_WALL | CAT_ROCK | CAT_FLOOR,
+      mask: CAT_WALL | CAT_RAGDOLL | CAT_ROCK | CAT_FLOOR,
     };
 
-    const hips = M.Bodies.rectangle(x, y, 40, 10, {
+    const hips = M.Bodies.rectangle(x, y, 40, 20, {
       label: "hips",
+      collisionFilter: 0,
     });
 
     const torso = M.Bodies.rectangle(x, y - 60, 40, 100, {
@@ -76,16 +96,54 @@ export class Hero {
       collisionFilter: filter,
     });
 
+    const rightLeg = M.Bodies.rectangle(x, y, 20, 70, {
+      label: "rightFibula",
+      collisionFilter: filter,
+    });
+
+    const rightFibula = M.Bodies.rectangle(x, y, 20, 70, {
+      label: "rightLeg",
+      collisionFilter: filter,
+    });
+
+    const rightFoot = M.Bodies.rectangle(x, y, 20, 10, {
+      label: "rightFoot",
+      collisionFilter: 0,
+    });
+
     this.scene.matter.world.add(hips);
     this.scene.matter.world.add(torso);
+    this.scene.matter.world.add(rightLeg);
+    this.scene.matter.world.add(rightFibula);
+    this.scene.matter.world.add(rightFoot);
 
     this.scene.matter.add.constraint(hips, torso, 0, 1, {
       pointA: { x: 0, y: -20 },
       pointB: { x: 0, y: 40 },
+      damping: 1,
+    });
+
+    this.scene.matter.add.constraint(hips, rightLeg, 0, 1, {
+      pointA: { x: -10, y: 0 },
+      pointB: { x: 0, y: 30 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(rightLeg, rightFibula, 10, 0.1, {
+      pointA: { x: 0, y: -30 },
+      pointB: { x: 0, y: 30 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(rightFibula, rightFoot, 0, 1, {
+      pointA: { x: 0, y: -30 },
+      pointB: { x: 0, y: 5 },
       damping: 0.1,
     });
 
     this.hipsBody = hips;
     this.torsoBody = torso;
+    this.rightLeg = rightLeg;
+    this.rightFibula = rightFibula;
   }
 }
