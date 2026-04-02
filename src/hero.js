@@ -53,13 +53,18 @@ export class Hero {
       M.Body.setStatic(body, true);
     }
 
-    // Enable IK so Spine animation drives the pose
-    for (const ik of this.spine.skeleton.ikConstraints) {
-      ik.mix = 1;
-    }
+    // Reset bones to neutral before animation takes over
+    this.spine.skeleton.setToSetupPose();
 
-    // Play Eat animation once, then return to ragdoll
+    // Put the chicken leg into the food slot
+    const skeleton = this.spine.skeleton;
+    const slot = skeleton.findSlot("foodSlot");
+    const attachment = skeleton.getAttachmentByName("foodSlot", "skin/food/chicken leg");
+    if (slot && attachment) slot.setAttachment(attachment);
+
+    // Play Eat animation once, then return to ragdoll (no crossfade from ragdoll state)
     const entry = this.spine.animationState.setAnimation(0, "Eat", false);
+    entry.mixDuration = 0;
     const listener = {
       complete: (e) => {
         if (e === entry) {
@@ -81,10 +86,17 @@ export class Hero {
       M.Body.setStatic(body, false);
     }
 
-    // Disable IK — bone overrides take back control
+    // Reset all IK constraints — the Eat animation keyframes them, leaving mix > 0
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
     }
+
+    // Clear the food slot
+    const slot = this.spine.skeleton.findSlot("foodSlot");
+    if (slot) slot.setAttachment(null);
+
+    // Clear animation so ragdoll bone overrides take full control
+    this.spine.animationState.setEmptyAnimation(0, 0);
   }
 
   update() {
@@ -139,8 +151,7 @@ export class Hero {
     leftHandUp.rotation = -Phaser.Math.RadToDeg(
       this.leftUpperArm.angle - this.torsoBody.angle,
     );
-
-    this.spine.skeleton.updateWorldTransform(Physics.update);
+    this.spine.skeleton.updateWorldTransform(Physics.none);
   }
 
   _createSpine(x, y) {
