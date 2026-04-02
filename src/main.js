@@ -1,26 +1,22 @@
 import Phaser from "phaser";
 import { SpinePlugin } from "@esotericsoftware/spine-phaser-v4";
 import { Hero } from "./hero";
-
-const VIEW_W = 720;
-const VIEW_H = 1280;
-const WORLD_H = 20000;
-const WALL_W = 40;
-
-const CHUNK_H = VIEW_H;
-const CHUNKS_AHEAD = 2;
-const CHUNKS_BEHIND = 2;
-
-const ROCK_LENGTH = 120;
-const ROCK_THICKNESS = 18;
-const ROCK_GAP = 250;
-
-const CAT_WALL = 0x0001;
-const CAT_RAGDOLL = 0x0002;
-const CAT_ROCK = 0x0004;
-const CAT_FLOOR = 0x0008;
-
-const MOVE_FORCE = 0.005;
+import {
+  VIEW_W,
+  VIEW_H,
+  WORLD_H,
+  WALL_W,
+  CHUNK_H,
+  CHUNKS_AHEAD,
+  CHUNKS_BEHIND,
+  ROCK_LENGTH,
+  ROCK_THICKNESS,
+  ROCK_GAP,
+  CAT_WALL,
+  CAT_RAGDOLL,
+  CAT_FLOOR,
+  MOVE_FORCE,
+} from "./global";
 
 class FallScene extends Phaser.Scene {
   constructor() {
@@ -165,7 +161,7 @@ class FallScene extends Phaser.Scene {
           isStatic: true,
           label: "rock",
           angle: rotation,
-          collisionFilter: { category: CAT_ROCK, mask: CAT_RAGDOLL },
+          collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
         },
       );
 
