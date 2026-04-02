@@ -31,6 +31,7 @@ class FallScene extends Phaser.Scene {
   preload() {
     this.load.spineJson("man", "/spine/man/skeleton.json");
     this.load.spineAtlas("manAtlas", "/spine/man/skeleton.atlas", true);
+    this.load.image("chicken", "/spine/man/skeleton_12.png");
   }
 
   create() {
@@ -62,21 +63,30 @@ class FallScene extends Phaser.Scene {
     // --- Hero ---
     this.hero = new Hero(this, VIEW_W / 2, 200);
 
-    // --- Collision: floor = game over ---
+    // --- Collision events ---
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
       for (const pair of event.pairs) {
         const a = pair.bodyA.label;
         const b = pair.bodyB.label;
+
+        // Floor = game over
         if (
           (a === "floor" && this.hero.ownsLabel(b)) ||
           (b === "floor" && this.hero.ownsLabel(a))
         ) {
-          if (a === "head" || b === "head") {
-            this.endGame(true);
-          } else {
-            this.endGame();
-          }
+          this.endGame(a === "head" || b === "head");
+          break;
+        }
+
+        // Chicken = eat animation
+        if (
+          !this.hero.isEating &&
+          ((a === "chicken" && this.hero.ownsLabel(b)) ||
+            (b === "chicken" && this.hero.ownsLabel(a)))
+        ) {
+          const chickenBody = a === "chicken" ? pair.bodyA : pair.bodyB;
+          this._collectChicken(chickenBody);
           break;
         }
       }
@@ -239,15 +249,34 @@ class FallScene extends Phaser.Scene {
       y += spikeH + Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
     }
 
+    // 40% chance to spawn one chicken per chunk
+    if (Math.random() < 0.4) {
+      const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
+      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+
+      const visual = this.add.image(cx, cy, "chicken").setScale(0.12).setDepth(8);
+
+      const M = Phaser.Physics.Matter.Matter;
+      const chickenBody = M.Bodies.circle(cx, cy, 40, {
+        isStatic: true,
+        isSensor: true,
+        label: "chicken",
+      });
+      this.matter.world.add(chickenBody);
+
+      objects.push({ visual, chickenBody });
+    }
+
     this.generatedChunks.set(chunkIndex, objects);
   }
 
   destroyChunk(chunkIndex) {
     const objects = this.generatedChunks.get(chunkIndex);
     if (!objects) return;
-    objects.forEach(({ visual, rockBody }) => {
+    objects.forEach(({ visual, rockBody, chickenBody }) => {
       visual.destroy();
-      this.matter.world.remove(rockBody);
+      if (rockBody) this.matter.world.remove(rockBody);
+      if (chickenBody) this.matter.world.remove(chickenBody);
     });
     this.generatedChunks.delete(chunkIndex);
   }
@@ -286,6 +315,21 @@ class FallScene extends Phaser.Scene {
     this.cameras.main.scrollY = this.hero.y - VIEW_H * 0.4;
 
     this.updateChunks();
+  }
+
+  // ==================== CHICKEN ====================
+
+  _collectChicken(chickenBody) {
+    this.matter.world.remove(chickenBody);
+    for (const [, objects] of this.generatedChunks) {
+      const idx = objects.findIndex((o) => o.chickenBody === chickenBody);
+      if (idx !== -1) {
+        objects[idx].visual.destroy();
+        objects.splice(idx, 1);
+        break;
+      }
+    }
+    this.hero.startEating();
   }
 
   // ==================== GAME OVER ====================

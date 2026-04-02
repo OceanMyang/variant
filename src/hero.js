@@ -36,6 +36,52 @@ export class Hero {
   }
 
   setup() {
+    this.isEating = false;
+    for (const ik of this.spine.skeleton.ikConstraints) {
+      ik.mix = 0;
+    }
+  }
+
+  startEating() {
+    if (this.isEating) return;
+    this.isEating = true;
+
+    const M = Phaser.Physics.Matter.Matter;
+
+    // Freeze all bodies so gravity doesn't pull the character down
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, true);
+    }
+
+    // Enable IK so Spine animation drives the pose
+    for (const ik of this.spine.skeleton.ikConstraints) {
+      ik.mix = 1;
+    }
+
+    // Play Eat animation once, then return to ragdoll
+    const entry = this.spine.animationState.setAnimation(0, "Eat", false);
+    const listener = {
+      complete: (e) => {
+        if (e === entry) {
+          this.spine.animationState.removeListener(listener);
+          this.stopEating();
+        }
+      },
+    };
+    this.spine.animationState.addListener(listener);
+  }
+
+  stopEating() {
+    this.isEating = false;
+
+    const M = Phaser.Physics.Matter.Matter;
+
+    // Unfreeze — ragdoll resumes
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, false);
+    }
+
+    // Disable IK — bone overrides take back control
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
     }
@@ -47,6 +93,9 @@ export class Hero {
     // Hips body is the root of the spine
     this.spine.x = this.hips.position.x;
     this.spine.y = this.hips.position.y + 150;
+
+    // While eating, SpineGameObject's preUpdate handles the animation — skip bone overrides
+    if (this.isEating) return;
 
     // Drive torsoBone rotation from body angle
     const torso = this.spine.skeleton.findBone("torsoBone");
