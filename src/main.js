@@ -22,7 +22,7 @@ class FallScene extends Phaser.Scene {
   constructor() {
     super({ key: "FallScene" });
     this.hero = null;
-    this.survivalTime = 0;
+    this.score = 0;
     this.isGameOver = false;
     this.generatedChunks = new Map();
     this.lastChunkIndex = -1;
@@ -72,7 +72,11 @@ class FallScene extends Phaser.Scene {
           (a === "floor" && this.hero.ownsLabel(b)) ||
           (b === "floor" && this.hero.ownsLabel(a))
         ) {
-          this.endGame();
+          if (a === "head" || b === "head") {
+            this.endGame(true);
+          } else {
+            this.endGame();
+          }
           break;
         }
       }
@@ -87,14 +91,16 @@ class FallScene extends Phaser.Scene {
       if (this.isGameOver) return;
       if (this.matter.world.enabled) {
         this.matter.world.pause();
+        this.pauseText.setVisible(true);
       } else {
         this.matter.world.resume();
+        this.pauseText.setVisible(false);
       }
     });
 
     // --- UI ---
     this.timerText = this.add
-      .text(VIEW_W / 2, 20, "0.00s", {
+      .text(VIEW_W / 2, 20, "Score: 0", {
         fontSize: "32px",
         color: "#ffffff",
         fontFamily: "system-ui, sans-serif",
@@ -105,6 +111,18 @@ class FallScene extends Phaser.Scene {
 
     this.gameOverText = this.add
       .text(VIEW_W / 2, VIEW_H / 2, "", {
+        fontSize: "48px",
+        color: "#ffffff",
+        fontFamily: "system-ui, sans-serif",
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+
+    this.pauseText = this.add
+      .text(VIEW_W / 2, VIEW_H / 2, "PAUSED", {
         fontSize: "48px",
         color: "#ffffff",
         fontFamily: "system-ui, sans-serif",
@@ -151,7 +169,6 @@ class FallScene extends Phaser.Scene {
     g.closePath();
     g.fillPath();
 
-    // Dark edge line for depth
     g.lineStyle(2, 0x222244, 1);
     g.beginPath();
     g.moveTo(points[0].x, points[0].y);
@@ -177,7 +194,7 @@ class FallScene extends Phaser.Scene {
     let y = chunkTop + Phaser.Math.Between(50, ROCK_GAP);
     while (y < chunkBottom - 50 && y < WORLD_H - 100) {
       const fromLeft = Math.random() > 0.5;
-      const angleDeg = Phaser.Math.Between(10, 35); // shallower, more natural
+      const angleDeg = Phaser.Math.Between(10, 35);
       const angleRad = Phaser.Math.DegToRad(angleDeg);
       const startX = fromLeft ? WALL_W : VIEW_W - WALL_W;
       const dx = (fromLeft ? 1 : -1) * Math.cos(angleRad) * ROCK_LENGTH;
@@ -188,15 +205,14 @@ class FallScene extends Phaser.Scene {
 
       const spikeW = Phaser.Math.Between(30, 200);
       const spikeH = Phaser.Math.Between(120, 500);
-      const tipOffset = Phaser.Math.Between(spikeH * 0.2, spikeH * 0.8); // tip is offset, not centered
+      const tipOffset = Phaser.Math.Between(spikeH * 0.2, spikeH * 0.8);
 
       const rootX = fromLeft ? 0 : VIEW_W;
       const dir = fromLeft ? 1 : -1;
 
-      // Absolute world coords of the 3 vertices
-      const p0 = { x: rootX, y: y }; // top on wall
-      const p1 = { x: rootX + dir * spikeW, y: y + tipOffset }; // tip (inward, offset)
-      const p2 = { x: rootX, y: y + spikeH }; // bottom on wall
+      const p0 = { x: rootX, y: y };
+      const p1 = { x: rootX + dir * spikeW, y: y + tipOffset };
+      const p2 = { x: rootX, y: y + spikeH };
 
       const visual = this.add.graphics();
       visual.setDepth(5);
@@ -210,7 +226,6 @@ class FallScene extends Phaser.Scene {
       visual.fillPath();
       visual.strokePath();
 
-      // Centroid of triangle for body position
       const tcx = (p0.x + p1.x + p2.x) / 3;
       const tcy = (p0.y + p1.y + p2.y) / 3;
 
@@ -260,8 +275,8 @@ class FallScene extends Phaser.Scene {
     if (this.isGameOver) return;
     if (!this.matter.world.enabled) return;
 
-    this.survivalTime += deltaMs / 1000;
-    this.timerText.setText(this.survivalTime.toFixed(2) + "s");
+    this.score += deltaMs / 1000;
+    this.timerText.setText("Score: " + Math.floor(this.score * 100));
 
     if (this.cursors.left.isDown) this.hero.pushLeft(MOVE_FORCE);
     else if (this.cursors.right.isDown) this.hero.pushRight(MOVE_FORCE);
@@ -275,12 +290,22 @@ class FallScene extends Phaser.Scene {
 
   // ==================== GAME OVER ====================
 
-  endGame() {
+  endGame(headHit = false) {
     if (this.isGameOver) return;
     this.isGameOver = true;
-    this.gameOverText.setText(
-      "GAME OVER\n" + this.survivalTime.toFixed(2) + "s",
-    );
+    this.timerText.setVisible(false);
+    if (headHit) {
+      this.score = 0;
+      this.gameOverText.setText(
+        "Oops. You hit your head.\n" +
+          "Your survival score: " +
+          Math.floor(this.score * 100),
+      );
+    } else {
+      this.gameOverText.setText(
+        "GAME OVER\n" + "Your survival score: " + Math.floor(this.score * 100),
+      );
+    }
     this.gameOverText.setVisible(true);
   }
 }

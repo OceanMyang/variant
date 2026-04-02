@@ -115,7 +115,7 @@ export class Hero {
 
     const handFilter = {
       category: CAT_RAGDOLL,
-      mask: CAT_WALL | CAT_ROCK | CAT_FLOOR,
+      mask: CAT_WALL | CAT_ROCK,
     };
 
     const hips = M.Bodies.rectangle(x, y, 40, 20, {
@@ -124,7 +124,13 @@ export class Hero {
       collisionFilter: 0,
     });
 
-    const torso = M.Bodies.rectangle(x, y - 60, 40, 100, {
+    const head = M.Bodies.rectangle(x, y - 100, 40, 40, {
+      label: "head",
+      frictionAir: 0,
+      collisionFilter: filter,
+    });
+
+    const torso = M.Bodies.rectangle(x, y - 60, 40, 80, {
       label: "torso",
       frictionAir: 0,
       collisionFilter: filter,
@@ -175,6 +181,7 @@ export class Hero {
     });
 
     this.scene.matter.world.add(hips);
+    this.scene.matter.world.add(head);
     this.scene.matter.world.add(torso);
     this.scene.matter.world.add(rightLeg);
     this.scene.matter.world.add(rightFibula);
@@ -188,6 +195,12 @@ export class Hero {
     this.scene.matter.add.constraint(hips, torso, 0, 1, {
       pointA: { x: 0, y: -20 },
       pointB: { x: 0, y: 40 },
+      damping: 1,
+    });
+
+    this.scene.matter.add.constraint(head, torso, 0, 1, {
+      pointA: { x: 0, y: 20 },
+      pointB: { x: 0, y: -40 },
       damping: 1,
     });
 
@@ -251,6 +264,7 @@ export class Hero {
     this.leftUpperArm = leftUpperArm;
     this.allBodies = [
       hips,
+      head,
       torso,
       rightLeg,
       rightFibula,

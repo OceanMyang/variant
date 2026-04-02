@@ -1,7 +1,7 @@
 // global.js
 export const VIEW_W = 720;
 export const VIEW_H = 1280;
-export const WORLD_H = 50000;
+export const WORLD_H = 20000;
 export const WALL_W = 40;
 
 export const CHUNK_H = VIEW_H;
