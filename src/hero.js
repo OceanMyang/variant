@@ -186,7 +186,7 @@ export class Hero {
     });
 
     this.scene.matter.add.constraint(hips, rightLeg, 0, 1, {
-      pointA: { x: -15, y: 0 },
+      pointA: { x: -10, y: 0 },
       pointB: { x: 0, y: 30 },
       damping: 0.1,
     });
@@ -204,7 +204,7 @@ export class Hero {
     });
 
     this.scene.matter.add.constraint(hips, leftLeg, 0, 1, {
-      pointA: { x: 15, y: 0 },
+      pointA: { x: 10, y: 0 },
       pointB: { x: 0, y: 30 },
       damping: 0.1,
     });
