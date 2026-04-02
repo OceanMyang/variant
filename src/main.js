@@ -26,6 +26,8 @@ class FallScene extends Phaser.Scene {
     this.isGameOver = false;
     this.generatedChunks = new Map();
     this.lastChunkIndex = -1;
+    this.waterZones = [];
+    this.rainZones = [];
   }
 
   preload() {
@@ -33,6 +35,11 @@ class FallScene extends Phaser.Scene {
     this.load.spineAtlas("manAtlas", "/spine/man/skeleton.atlas", true);
     this.load.image("chicken", "/spine/man/skeleton_12.png");
     this.load.image("katana", "/spine/man/skeleton_14.png");
+    this.load.spritesheet("geyser", "/spine/man/skeleton_9.png", {
+      frameWidth: 150,
+      frameHeight: 351,
+    });
+    this.load.image("raindrop", "/spine/man/skeleton_4.png");
   }
 
   create() {
@@ -287,9 +294,8 @@ class FallScene extends Phaser.Scene {
     }
 
     // 30% chance to spawn one katana on a wall, avoiding rock y-ranges
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.3) {
       const side = Math.random() < 0.5 ? "left" : "right";
-      const bladeLen = 80;
       let ky;
       let attempts = 0;
       do {
@@ -331,6 +337,106 @@ class FallScene extends Phaser.Scene {
       this.matter.world.add(katanaBody);
 
       objects.push({ visual: kVisual, katanaBody });
+    }
+
+    // 25% chance to spawn a water geyser on a wall
+    if (Math.random() < 0.25 && chunkTop < WORLD_H - 200) {
+      const side = Math.random() < 0.5 ? "left" : "right";
+      let wy,
+        wyAttempts = 0;
+      do {
+        wy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+        wyAttempts++;
+      } while (
+        wyAttempts < 10 &&
+        objects.some(
+          (o) =>
+            o.rockBody &&
+            wy >= o.rockBody.bounds.min.y - 80 &&
+            wy <= o.rockBody.bounds.max.y + 80,
+        )
+      );
+      const burstLen = 160;
+      const burstH = 70;
+      const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
+      const cx = startX + burstLen / 2;
+
+      // After rotating ±90°, the frame's height becomes the visual width on screen.
+      // Position center so the source edge sits exactly at the wall.
+      const GEYSER_SCALE = 1.0;
+      const GEYSER_WIDTH = 120;
+      const geyserAngle = side === "left" ? -90 : 90;
+      const geyserCX =
+        side === "left"
+          ? WALL_W + GEYSER_WIDTH * GEYSER_SCALE
+          : VIEW_W - WALL_W - GEYSER_WIDTH * GEYSER_SCALE;
+      const waterG = this.add
+        .sprite(geyserCX, wy, "geyser", 0)
+        .setDepth(7)
+        .setScale(GEYSER_SCALE)
+        .setAngle(geyserAngle);
+
+      let animFrame = 0;
+      const waterTimer = this.time.addEvent({
+        delay: 150,
+        callback: () => {
+          animFrame = (animFrame + 1) % 4;
+          waterG.setFrame(animFrame);
+        },
+        loop: true,
+      });
+
+      // Raindrop spawner — skeleton_4.png sprites that tween downward and self-destroy
+      const rainStartY = wy + burstH / 2;
+      const spawnRaindrop = () => {
+        if (!waterG.active) return;
+        const rd = this.add
+          .image(
+            cx + Phaser.Math.Between(-burstLen * 1.2, burstLen * 1.2),
+            rainStartY,
+            "raindrop",
+          )
+          .setScale(0.15)
+          .setDepth(6);
+        this.tweens.add({
+          targets: rd,
+          y: rainStartY + Phaser.Math.Between(400, 700),
+          alpha: 0,
+          duration: Phaser.Math.Between(1200, 2200),
+          ease: "Linear",
+          onComplete: () => rd.destroy(),
+        });
+      };
+      const rainTimer = this.time.addEvent({
+        delay: 100,
+        callback: spawnRaindrop,
+        loop: true,
+      });
+
+      // Zone bounds for per-frame force checks (no physics body needed)
+      const waterZoneData = {
+        minX: startX,
+        maxX: startX + burstLen,
+        minY: wy - burstH / 2,
+        maxY: wy + burstH / 2,
+        side,
+      };
+      const rainZoneData = {
+        minX: startX - 20,
+        maxX: startX + burstLen + 20,
+        minY: wy + burstH / 2,
+        maxY: wy + burstH / 2 + 500,
+      };
+      this.waterZones.push(waterZoneData);
+      this.rainZones.push(rainZoneData);
+
+      objects.push({
+        visual: waterG,
+        waterTimer,
+        rainTimer,
+        waterZoneData,
+        rainZoneData,
+      });
     }
 
     // 40% chance to spawn one chicken per chunk
