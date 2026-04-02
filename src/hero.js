@@ -120,40 +120,46 @@ export class Hero {
 
     const hips = M.Bodies.rectangle(x, y, 40, 20, {
       label: "hips",
+      frictionAir: 0,
       collisionFilter: 0,
     });
 
     const torso = M.Bodies.rectangle(x, y - 60, 40, 100, {
       label: "torso",
+      frictionAir: 0,
       collisionFilter: filter,
     });
 
-    const rightLeg = M.Bodies.rectangle(x - 10, y, 17, 60, {
+    const rightLeg = M.Bodies.rectangle(x - 10, y, 20, 60, {
       label: "rightLeg",
+      frictionAir: 0,
       collisionFilter: filter,
     });
 
-    const rightFibula = M.Bodies.rectangle(x - 10, y + 60, 17, 70, {
+    const leftLeg = M.Bodies.rectangle(x + 10, y, 20, 60, {
+      label: "leftLeg",
+      frictionAir: 0,
+      collisionFilter: filter,
+    });
+
+    const rightFibula = M.Bodies.rectangle(x - 10, y + 60, 20, 70, {
       label: "rightFibula",
+      frictionAir: 0,
       collisionFilter: filter,
     });
 
-    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 17, 10, {
+    const leftFibula = M.Bodies.rectangle(x + 10, y + 60, 20, 70, {
+      label: "leftFibula",
+      frictionAir: 0,
+      collisionFilter: filter,
+    });
+
+    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 20, 10, {
       label: "rightFoot",
       collisionFilter: 0,
     });
 
-    const leftLeg = M.Bodies.rectangle(x + 10, y, 17, 60, {
-      label: "leftLeg",
-      collisionFilter: filter,
-    });
-
-    const leftFibula = M.Bodies.rectangle(x + 10, y + 60, 17, 70, {
-      label: "leftFibula",
-      collisionFilter: filter,
-    });
-
-    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 17, 10, {
+    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 20, 10, {
       label: "leftFoot",
       collisionFilter: 0,
     });
@@ -191,27 +197,27 @@ export class Hero {
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(rightLeg, rightFibula, 0, 0.1, {
-      pointA: { x: 0, y: -40 },
-      pointB: { x: 0, y: 40 },
-      damping: 0.1,
-    });
-
-    this.scene.matter.add.constraint(rightFibula, rightFoot, 0, 1, {
-      pointA: { x: 0, y: -30 },
-      pointB: { x: 0, y: 5 },
-      damping: 0.1,
-    });
-
     this.scene.matter.add.constraint(hips, leftLeg, 0, 1, {
       pointA: { x: 10, y: 0 },
       pointB: { x: 0, y: 30 },
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(leftLeg, leftFibula, 0, 0.1, {
-      pointA: { x: 0, y: -40 },
-      pointB: { x: 0, y: 40 },
+    this.scene.matter.add.constraint(rightLeg, rightFibula, 10, 0.1, {
+      pointA: { x: 0, y: -30 },
+      pointB: { x: 0, y: 30 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(leftLeg, leftFibula, 10, 0.1, {
+      pointA: { x: 0, y: -30 },
+      pointB: { x: 0, y: 30 },
+      damping: 0.1,
+    });
+
+    this.scene.matter.add.constraint(rightFibula, rightFoot, 0, 1, {
+      pointA: { x: 0, y: -30 },
+      pointB: { x: 0, y: 5 },
       damping: 0.1,
     });
 
@@ -223,14 +229,14 @@ export class Hero {
 
     // Right arm: attach to top of torso
     this.scene.matter.add.constraint(torso, rightUpperArm, 0, 1, {
-      pointA: { x: -20, y: -10 },
+      pointA: { x: -20, y: -20 },
       pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
 
     // Left arm: attach to top of torso
     this.scene.matter.add.constraint(torso, leftUpperArm, 0, 1, {
-      pointA: { x: 20, y: -10 },
+      pointA: { x: 20, y: -20 },
       pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
