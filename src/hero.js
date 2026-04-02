@@ -10,6 +10,7 @@ export class Hero {
     this.scene = scene;
     this.torsoBody = null;
     this.spine = null;
+    this.allBodies = [];
 
     this._createSpine(x, y);
     this._createBody(x + 20, y);
@@ -24,7 +25,7 @@ export class Hero {
   }
 
   ownsLabel(label) {
-    return label === "torso";
+    return this.allBodies.some((b) => b.label === label);
   }
 
   pushLeft(force) {
@@ -44,8 +45,8 @@ export class Hero {
     if (!this.spine?.skeleton) return;
 
     // Hips body is the root of the spine
-    this.spine.x = this.hipsBody.position.x;
-    this.spine.y = this.hipsBody.position.y + 150;
+    this.spine.x = this.hips.position.x;
+    this.spine.y = this.hips.position.y + 150;
 
     // Drive torsoBone rotation from body angle
     const torso = this.spine.skeleton.findBone("torsoBone");
@@ -62,7 +63,7 @@ export class Hero {
     );
 
     const rightFeetBone = this.spine.skeleton.findBone("rightFeetBone");
-    rightFeetBone.rotation = -Phaser.Math.RadToDeg(this.rightFibula.angle) + 90;
+    rightFeetBone.rotation = -Phaser.Math.RadToDeg(this.rightLeg.angle) + 90;
 
     // Left leg
     const leftLeg = this.spine.skeleton.findBone("leftHipBone");
@@ -76,9 +77,7 @@ export class Hero {
     );
 
     const leftFeetBone = this.spine.skeleton.findBone("leftFeetBone");
-    leftFeetBone.rotation = -Phaser.Math.RadToDeg(
-      Math.max(0, this.leftFibula.angle - Math.PI / 2),
-    );
+    leftFeetBone.rotation = -Phaser.Math.RadToDeg(this.leftLeg.angle) + 90;
 
     // Right arm
     const rightHandUp = this.spine.skeleton.findBone("rightHandUp");
@@ -86,20 +85,10 @@ export class Hero {
       this.rightUpperArm.angle - this.torsoBody.angle,
     );
 
-    const rightHandDown = this.spine.skeleton.findBone("rightHandDown");
-    rightHandDown.rotation = -Phaser.Math.RadToDeg(
-      this.rightLowerArm.angle - this.rightUpperArm.angle,
-    );
-
     // Left arm
     const leftHandUp = this.spine.skeleton.findBone("leftHandUp"); // FIX: was "rightHandUp"
     leftHandUp.rotation = -Phaser.Math.RadToDeg(
       this.leftUpperArm.angle - this.torsoBody.angle,
-    );
-
-    const leftHandDown = this.spine.skeleton.findBone("leftHandDown"); // FIX: was "rightHandDown"
-    leftHandDown.rotation = -Phaser.Math.RadToDeg(
-      this.leftLowerArm.angle - this.leftUpperArm.angle,
     );
 
     this.spine.skeleton.updateWorldTransform(Physics.update);
@@ -110,6 +99,10 @@ export class Hero {
     this.spine.setScale(S);
     this.spine.setDepth(10);
     this.spine.animationState.data.defaultMix = 0.15;
+  }
+
+  _angle(angle) {
+    return Phaser.Math.Angle.Normalize(angle);
   }
 
   _createBody(x, y) {
@@ -135,60 +128,43 @@ export class Hero {
       collisionFilter: filter,
     });
 
-    const rightLeg = M.Bodies.rectangle(x - 10, y, 20, 70, {
-      // FIX: y+35
-      label: "rightFibula",
-      collisionFilter: filter,
-    });
-
-    const rightFibula = M.Bodies.rectangle(x - 10, y + 60, 20, 70, {
-      // FIX: y+105
+    const rightLeg = M.Bodies.rectangle(x - 10, y, 17, 60, {
       label: "rightLeg",
       collisionFilter: filter,
     });
 
-    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 20, 10, {
-      // FIX: y+180
+    const rightFibula = M.Bodies.rectangle(x - 10, y + 60, 17, 70, {
+      label: "rightFibula",
+      collisionFilter: filter,
+    });
+
+    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 17, 10, {
       label: "rightFoot",
       collisionFilter: 0,
     });
 
-    const leftLeg = M.Bodies.rectangle(x + 10, y, 20, 70, {
-      // FIX: y+35
+    const leftLeg = M.Bodies.rectangle(x + 10, y, 17, 60, {
       label: "leftLeg",
       collisionFilter: filter,
     });
 
-    const leftFibula = M.Bodies.rectangle(x + 10, y + 60, 20, 70, {
-      // FIX: y+105
+    const leftFibula = M.Bodies.rectangle(x + 10, y + 60, 17, 70, {
       label: "leftFibula",
       collisionFilter: filter,
     });
 
-    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 20, 10, {
-      // FIX: y+180
+    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 17, 10, {
       label: "leftFoot",
       collisionFilter: 0,
     });
 
-    const rightUpperArm = M.Bodies.rectangle(x - 20, y - 80, 15, 50, {
+    const rightUpperArm = M.Bodies.rectangle(x - 20, y - 80, 10, 120, {
       label: "rightUpperArm",
       collisionFilter: handFilter,
     });
 
-    const rightLowerArm = M.Bodies.rectangle(x - 20, y - 100, 12, 45, {
-      label: "rightLowerArm",
-      collisionFilter: handFilter,
-    });
-
-    const leftUpperArm = M.Bodies.rectangle(x + 20, y - 80, 15, 50, {
-      // FIX: y-120
+    const leftUpperArm = M.Bodies.rectangle(x + 20, y - 80, 10, 120, {
       label: "leftUpperArm",
-      collisionFilter: handFilter,
-    });
-
-    const leftLowerArm = M.Bodies.rectangle(x + 20, y - 100, 12, 45, {
-      label: "leftLowerArm",
       collisionFilter: handFilter,
     });
 
@@ -201,9 +177,7 @@ export class Hero {
     this.scene.matter.world.add(leftFibula);
     this.scene.matter.world.add(leftFoot);
     this.scene.matter.world.add(rightUpperArm);
-    this.scene.matter.world.add(rightLowerArm);
     this.scene.matter.world.add(leftUpperArm);
-    this.scene.matter.world.add(leftLowerArm);
 
     this.scene.matter.add.constraint(hips, torso, 0, 1, {
       pointA: { x: 0, y: -20 },
@@ -212,14 +186,14 @@ export class Hero {
     });
 
     this.scene.matter.add.constraint(hips, rightLeg, 0, 1, {
-      pointA: { x: -10, y: 0 },
+      pointA: { x: -15, y: 0 },
       pointB: { x: 0, y: 30 },
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(rightLeg, rightFibula, 10, 0.1, {
-      pointA: { x: 0, y: -30 },
-      pointB: { x: 0, y: 30 },
+    this.scene.matter.add.constraint(rightLeg, rightFibula, 0, 0.1, {
+      pointA: { x: 0, y: -40 },
+      pointB: { x: 0, y: 40 },
       damping: 0.1,
     });
 
@@ -230,14 +204,14 @@ export class Hero {
     });
 
     this.scene.matter.add.constraint(hips, leftLeg, 0, 1, {
-      pointA: { x: 10, y: 0 },
+      pointA: { x: 15, y: 0 },
       pointB: { x: 0, y: 30 },
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(leftLeg, leftFibula, 10, 0.1, {
-      pointA: { x: 0, y: -30 },
-      pointB: { x: 0, y: 30 },
+    this.scene.matter.add.constraint(leftLeg, leftFibula, 0, 0.1, {
+      pointA: { x: 0, y: -40 },
+      pointB: { x: 0, y: 40 },
       damping: 0.1,
     });
 
@@ -249,39 +223,37 @@ export class Hero {
 
     // Right arm: attach to top of torso
     this.scene.matter.add.constraint(torso, rightUpperArm, 0, 1, {
-      pointA: { x: -30, y: -20 },
-      pointB: { x: 0, y: 20 },
-      damping: 0.1,
-    });
-
-    this.scene.matter.add.constraint(rightUpperArm, rightLowerArm, 0, 0.1, {
-      pointA: { x: 0, y: -20 },
-      pointB: { x: 0, y: 20 },
+      pointA: { x: -20, y: -10 },
+      pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
 
     // Left arm: attach to top of torso
     this.scene.matter.add.constraint(torso, leftUpperArm, 0, 1, {
-      pointA: { x: 30, y: -20 },
-      pointB: { x: 0, y: 20 },
+      pointA: { x: 20, y: -10 },
+      pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(leftUpperArm, leftLowerArm, 0, 0.1, {
-      pointA: { x: 0, y: -20 },
-      pointB: { x: 0, y: 20 },
-      damping: 0.1,
-    });
-
-    this.hipsBody = hips;
     this.torsoBody = torso;
+    this.hips = hips;
     this.rightLeg = rightLeg;
     this.rightFibula = rightFibula;
     this.leftLeg = leftLeg;
     this.leftFibula = leftFibula;
     this.rightUpperArm = rightUpperArm;
-    this.rightLowerArm = rightLowerArm;
     this.leftUpperArm = leftUpperArm;
-    this.leftLowerArm = leftLowerArm;
+    this.allBodies = [
+      hips,
+      torso,
+      rightLeg,
+      rightFibula,
+      rightFoot,
+      leftLeg,
+      leftFibula,
+      leftFoot,
+      rightUpperArm,
+      leftUpperArm,
+    ];
   }
 }

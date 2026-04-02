@@ -116,6 +116,14 @@ class FallScene extends Phaser.Scene {
       .setVisible(false);
 
     this.updateChunks();
+    this.input.keyboard.on("keydown-SPACE", () => {
+      if (this.isGameOver) return;
+      if (this.matter.world.enabled) {
+        this.matter.world.pause();
+      } else {
+        this.matter.world.resume();
+      }
+    });
   }
 
   // ==================== CHUNKS ====================
