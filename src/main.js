@@ -44,6 +44,7 @@ class FallScene extends Phaser.Scene {
     this.skateVisual = null;
   }
 
+  // load assets
   preload() {
     this.load.spineJson("man", "/spine/man/skeleton.json");
     this.load.spineAtlas("manAtlas", "/spine/man/skeleton.atlas", true);
@@ -182,6 +183,7 @@ class FallScene extends Phaser.Scene {
       }
     });
 
+    // Water geyser continually pushes player to one side
     this.matter.world.on("collisionactive", (event) => {
       if (this.isGameOver || this.hero.isGrabbingKatana || this.hero.isEating)
         return;
@@ -215,10 +217,17 @@ class FallScene extends Phaser.Scene {
     // --- Input ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.isGameOver) { window.location.reload(); return; }
-      if (this.hero?.isGrabbingKatana) { this.hero.onSpacePressed(); return; }
+      if (this.isGameOver) {
+        window.location.reload();
+        return;
+      }
+      if (this.hero?.isGrabbingKatana) {
+        this.hero.onSpacePressed();
+        return;
+      }
     });
 
+    // ESC - Pause button
     this.input.keyboard.on("keydown-ESC", () => {
       if (this.isGameOver) return;
       if (this.matter.world.enabled) {
@@ -236,6 +245,7 @@ class FallScene extends Phaser.Scene {
       }
     });
 
+    // Used for skateboard minigame
     this.input.keyboard.on("keydown-LEFT", () => {
       if (this.hero?.isSkateboarding) this._onSkateKey("left");
     });
@@ -310,7 +320,7 @@ class FallScene extends Phaser.Scene {
       .setDepth(61)
       .setVisible(false);
 
-    // FNF-style arrow rhythm UI for skateboard
+    // Arrow rhythm UI for skateboard
     const receptorStyle = {
       fontSize: "52px",
       color: "#223355",
@@ -403,6 +413,7 @@ class FallScene extends Phaser.Scene {
     }
 
     let y = chunkTop + Phaser.Math.Between(50, ROCK_GAP);
+    // Generate rocks
     while (y < chunkBottom - 50 && y < WORLD_H) {
       const fromLeft = Math.random() > 0.5;
       const angleDeg = Phaser.Math.Between(10, 35);
@@ -450,6 +461,7 @@ class FallScene extends Phaser.Scene {
       y += spikeH + Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
     }
 
+    // Generate katanas pickups
     if (Math.random() < P_KATANA) {
       const side = Math.random() < 0.5 ? "left" : "right";
       let ky;
@@ -497,6 +509,7 @@ class FallScene extends Phaser.Scene {
       } // end ky < WORLD_H - ITEM_THRESHOLD
     }
 
+    // generate water geysers
     if (Math.random() < P_GEYSER && chunkTop < WORLD_H - 200) {
       const side = Math.random() < 0.5 ? "left" : "right";
       let wy,
@@ -610,6 +623,7 @@ class FallScene extends Phaser.Scene {
       } // end wy < WORLD_H - ITEM_THRESHOLD
     }
 
+    // generate chicken pickup
     if (Math.random() < P_CHICKEN) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
@@ -631,7 +645,7 @@ class FallScene extends Phaser.Scene {
       } // end cy < WORLD_H - ITEM_THRESHOLD
     }
 
-    // Dress item
+    // Generate dress items
     if (Math.random() < P_DRESS) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
@@ -653,7 +667,7 @@ class FallScene extends Phaser.Scene {
       } // end cy < WORLD_H - ITEM_THRESHOLD
     }
 
-    // Skateboard item
+    // Generate skateboard pickups
     if (Math.random() < P_SKATEBOARD) {
       const cx = Phaser.Math.Between(WALL_W + 80, VIEW_W - WALL_W - 80);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
@@ -732,7 +746,7 @@ class FallScene extends Phaser.Scene {
     this.updateChunks();
   }
 
-  // ==================== STAMINA UI ====================
+  // ==================== STAMINA UI (used for KATANA) ====================
 
   _updateStaminaUI() {
     const grabbing = this.hero.isGrabbingKatana;
@@ -800,6 +814,8 @@ class FallScene extends Phaser.Scene {
     this.hero.startEating();
   }
 
+  // ==================== DRESS ====================
+
   _collectDress(dressBody) {
     this.matter.world.remove(dressBody);
     for (const [, objects] of this.generatedChunks) {
@@ -833,6 +849,7 @@ class FallScene extends Phaser.Scene {
     this.hero.startSkateboarding();
   }
 
+  // User input handler of skateboard minigame
   _onSkateKey(side) {
     const idx = this.skateArrows.findIndex(
       (a) =>
@@ -868,6 +885,7 @@ class FallScene extends Phaser.Scene {
     }
   }
 
+  // Fail skateboard minigame
   _skateFail(missedArrow = null) {
     this.hero.stopSkateboarding();
     this.skateLeftReceptor.setVisible(false);
@@ -898,6 +916,7 @@ class FallScene extends Phaser.Scene {
     }
   }
 
+  // Update skateboard minigame
   _updateSkateUI(deltaMs) {
     if (!this.hero?.isSkateboarding) {
       this.skateLeftReceptor.setVisible(false);
@@ -1008,7 +1027,7 @@ const config = {
     default: "matter",
     matter: {
       gravity: { y: 1 },
-      debug: true,
+      debug: false,
     },
   },
   scale: {
