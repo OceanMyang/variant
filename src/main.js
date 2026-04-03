@@ -20,6 +20,11 @@ import {
   P_GEYSER,
   P_CHICKEN,
   P_DRESS,
+  P_SKATEBOARD,
+  SKATE_ARROW_SPEED,
+  SKATE_SPAWN_INTERVAL,
+  SKATE_HIT_WINDOW_PX,
+  ITEM_THRESHOLD,
 } from "./global";
 
 class FallScene extends Phaser.Scene {
@@ -32,6 +37,11 @@ class FallScene extends Phaser.Scene {
     this.lastChunkIndex = -1;
     this.waterZones = [];
     this.rainZones = [];
+    this.skateArrows = []; // { side, y, textObj }
+    this.skateSpawnTimer = 0;
+    this.skateSpawnRate = 1;
+    this.skateReceptorY = 0;
+    this.skateVisual = null;
   }
 
   preload() {
@@ -45,6 +55,7 @@ class FallScene extends Phaser.Scene {
     });
     this.load.image("raindrop", "/spine/man/skeleton_4.png");
     this.load.image("dress", "/spine/man/skeleton_6.png");
+    this.load.image("skateboard", "/spine/man/skeleton_2.png");
   }
 
   create() {
@@ -80,6 +91,7 @@ class FallScene extends Phaser.Scene {
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
       if (this.hero?.isWearingDress) return;
+      if (this.hero?.isSkateboarding) return;
       if (this.isEating) return;
       if (this.isGrabbing) return;
       for (const pair of event.pairs) {
@@ -123,6 +135,17 @@ class FallScene extends Phaser.Scene {
         ) {
           const dressBody = a === "dress" ? pair.bodyA : pair.bodyB;
           this._collectDress(dressBody);
+          break;
+        }
+
+        // Skateboard = rhythm mini-game
+        if (
+          !this.hero.isSkateboarding &&
+          ((a === "skateboard" && this.hero.ownsLabel(b)) ||
+            (b === "skateboard" && this.hero.ownsLabel(a)))
+        ) {
+          const skateBody = a === "skateboard" ? pair.bodyA : pair.bodyB;
+          this._collectSkateboard(skateBody);
           break;
         }
       }
@@ -178,6 +201,13 @@ class FallScene extends Phaser.Scene {
         if (this.hero?.spine) this.hero.spine.animationState.timeScale = 1;
         this.pauseText.setVisible(false);
       }
+    });
+
+    this.input.keyboard.on("keydown-LEFT", () => {
+      if (this.hero?.isSkateboarding) this._onSkateKey("left");
+    });
+    this.input.keyboard.on("keydown-RIGHT", () => {
+      if (this.hero?.isSkateboarding) this._onSkateKey("right");
     });
 
     // --- UI ---
@@ -247,6 +277,40 @@ class FallScene extends Phaser.Scene {
       .setDepth(61)
       .setVisible(false);
 
+    // FNF-style arrow rhythm UI for skateboard
+    const receptorStyle = {
+      fontSize: "52px",
+      color: "#223355",
+      stroke: "#000000",
+      strokeThickness: 3,
+      fontFamily: "system-ui, sans-serif",
+    };
+    this.skateLeftReceptor = this.add
+      .text(0, 0, "←", receptorStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62)
+      .setVisible(false);
+    this.skateRightReceptor = this.add
+      .text(0, 0, "→", receptorStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62)
+      .setVisible(false);
+
+    this.skateRoundText = this.add
+      .text(0, 0, "", {
+        fontSize: "18px",
+        color: "#ffdd44",
+        fontFamily: "system-ui, sans-serif",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(61)
+      .setVisible(false);
+
     this.updateChunks();
   }
 
@@ -306,7 +370,7 @@ class FallScene extends Phaser.Scene {
     }
 
     let y = chunkTop + Phaser.Math.Between(50, ROCK_GAP);
-    while (y < chunkBottom - 50 && y < WORLD_H - 100) {
+    while (y < chunkBottom - 50 && y < WORLD_H - ITEM_THRESHOLD) {
       const fromLeft = Math.random() > 0.5;
       const angleDeg = Phaser.Math.Between(10, 35);
       const angleRad = Phaser.Math.DegToRad(angleDeg);
@@ -556,6 +620,27 @@ class FallScene extends Phaser.Scene {
       } // end cy < WORLD_H - 100
     }
 
+    // Skateboard item
+    if (Math.random() < P_SKATEBOARD) {
+      const cx = Phaser.Math.Between(WALL_W + 80, VIEW_W - WALL_W - 80);
+      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+      if (cy < WORLD_H - 100) {
+        const g = this.add
+          .image(cx, cy, "skateboard")
+          .setScale(0.18)
+          .setDepth(8);
+
+        const M = Phaser.Physics.Matter.Matter;
+        const skateBody = M.Bodies.rectangle(cx, cy, 104, 20, {
+          isStatic: true,
+          isSensor: true,
+          label: "skateboard",
+        });
+        this.matter.world.add(skateBody);
+        objects.push({ visual: g, skateBody });
+      }
+    }
+
     this.generatedChunks.set(chunkIndex, objects);
   }
 
@@ -563,12 +648,13 @@ class FallScene extends Phaser.Scene {
     const objects = this.generatedChunks.get(chunkIndex);
     if (!objects) return;
     objects.forEach(
-      ({ visual, rockBody, chickenBody, katanaBody, dressBody }) => {
+      ({ visual, rockBody, chickenBody, katanaBody, dressBody, skateBody }) => {
         visual.destroy();
         if (rockBody) this.matter.world.remove(rockBody);
         if (chickenBody) this.matter.world.remove(chickenBody);
         if (katanaBody) this.matter.world.remove(katanaBody);
         if (dressBody) this.matter.world.remove(dressBody);
+        if (skateBody) this.matter.world.remove(skateBody);
       },
     );
     this.generatedChunks.delete(chunkIndex);
@@ -606,6 +692,7 @@ class FallScene extends Phaser.Scene {
     this.hero.update();
     this.hero.updateGrabbing(deltaMs);
     this._updateStaminaUI();
+    this._updateSkateUI(deltaMs);
 
     this.cameras.main.scrollY = this.hero.y - VIEW_H * 0.4;
 
@@ -693,22 +780,139 @@ class FallScene extends Phaser.Scene {
     this.hero.startDress();
   }
 
+  // ==================== SKATEBOARD ====================
+
+  _collectSkateboard(skateBody) {
+    this.matter.world.remove(skateBody);
+    for (const [, objects] of this.generatedChunks) {
+      const idx = objects.findIndex((o) => o.skateBody === skateBody);
+      if (idx !== -1) {
+        this.skateVisual = objects[idx].visual;
+        objects.splice(idx, 1);
+        break;
+      }
+    }
+    // Destroy any leftover arrow text objects
+    for (const a of this.skateArrows) a.textObj.destroy();
+    this.skateArrows = [];
+    this.skateSpawnTimer = 0; // spawn first arrow immediately
+    this.skateSpawnRate = 1;
+    this.hero.startSkateboarding();
+  }
+
+  _onSkateKey(side) {
+    const idx = this.skateArrows.findIndex(
+      (a) =>
+        a.side === side &&
+        Math.abs(a.y - this.skateReceptorY) <= SKATE_HIT_WINDOW_PX,
+    );
+    if (idx !== -1) {
+      this.skateSpawnRate += 0.1;
+      this.skateArrows[idx].textObj.destroy();
+      this.skateArrows.splice(idx, 1);
+      this.hero.nextSkateRound();
+      this.hero.setSide(side);
+    } else {
+      this._skateFail();
+    }
+  }
+
+  _skateFail() {
+    for (const a of this.skateArrows) a.textObj.destroy();
+    this.skateArrows = [];
+    this.hero.stopSkateboarding();
+    this.skateLeftReceptor.setVisible(false);
+    this.skateRightReceptor.setVisible(false);
+    this.skateRoundText.setVisible(false);
+    if (this.skateVisual) {
+      this.skateVisual.destroy();
+      this.skateVisual = null;
+    }
+  }
+
+  _updateSkateUI(deltaMs) {
+    if (!this.hero?.isSkateboarding) {
+      this.skateLeftReceptor.setVisible(false);
+      this.skateRightReceptor.setVisible(false);
+      this.skateRoundText.setVisible(false);
+      if (this.skateVisual) {
+        this.skateVisual.destroy();
+        this.skateVisual = null;
+      }
+      return;
+    }
+
+    const dt = deltaMs / 1000;
+
+    // Positions relative to hero in screen space — hero is frozen so these are stable
+    const hsx = this.hero.x - this.cameras.main.scrollX;
+    const hsy = this.hero.y - this.cameras.main.scrollY;
+    const ry = hsy - 150; // receptor sits 200px above hero center
+    const lx = hsx - 30;
+    const rx = hsx + 30;
+    const spawnY = ry - 420; // arrows travel 420px to reach receptor
+    this.skateReceptorY = ry;
+
+    // Spawn a new arrow
+    this.skateSpawnTimer -= this.skateSpawnRate * dt;
+    if (this.skateSpawnTimer <= 0) {
+      const side = Math.random() < 0.5 ? "left" : "right";
+      const textObj = this.add
+        .text(side === "left" ? lx : rx, spawnY, side === "left" ? "←" : "→", {
+          fontSize: "52px",
+          color: side === "left" ? "#ff4466" : "#44aaff",
+          stroke: "#000000",
+          strokeThickness: 3,
+          fontFamily: "system-ui, sans-serif",
+        })
+        .setOrigin(0.5, 0.5)
+        .setScrollFactor(0)
+        .setDepth(62);
+      this.skateArrows.push({ side, y: spawnY, textObj });
+      this.skateSpawnTimer = SKATE_SPAWN_INTERVAL;
+    }
+
+    // Move arrows, update positions and colours
+    for (const arrow of this.skateArrows) {
+      arrow.y += SKATE_ARROW_SPEED * dt;
+      const ax = arrow.side === "left" ? lx : rx;
+      arrow.textObj.setPosition(ax, arrow.y);
+      const inWindow = Math.abs(arrow.y - ry) <= SKATE_HIT_WINDOW_PX;
+      arrow.textObj.setColor(
+        inWindow ? "#ffffff" : arrow.side === "left" ? "#ff4466" : "#44aaff",
+      );
+    }
+
+    // Miss — arrow passed the receptor without a hit
+    if (this.skateArrows.some((a) => a.y > ry + SKATE_HIT_WINDOW_PX)) {
+      this._skateFail();
+      return;
+    }
+
+    // Keep skateboard sprite under hero feet
+    if (this.skateVisual) {
+      this.skateVisual.setPosition(this.hero.spine.x, this.hero.spine.y);
+    }
+
+    // Receptors
+    this.skateLeftReceptor.setPosition(lx, ry).setVisible(true);
+    this.skateRightReceptor.setPosition(rx, ry).setVisible(true);
+
+    this.skateRoundText.setVisible(false);
+  }
+
   // ==================== GAME OVER ====================
 
   endGame(headHit = false) {
     if (this.isGameOver) return;
     this.isGameOver = true;
     if (headHit) {
-      this.gameOverText.setText(
-        "Oops. You hit your head.\n" + `Your survival score: 0.\n`,
-      );
+      this.gameOverText.setText("Oops. You hit your head.\n" + `Score: 0.\n`);
     } else {
       const v = this.hero.torsoBody.velocity.y;
       const score =
         (Math.floor(this.survivedTime * 100) * 10) / Math.max(v, 10);
-      this.gameOverText.setText(
-        "GAME OVER\n" + `Your survival score: ${score.toFixed(0)}\n`,
-      );
+      this.gameOverText.setText("GAME OVER\n" + `Score: ${score.toFixed(0)}\n`);
       this.gameOverSubText.setText(
         `You hit the ground at ${v.toFixed(2)}m/s.\n` +
           "Stay longer next time!",
@@ -733,7 +937,7 @@ const config = {
     default: "matter",
     matter: {
       gravity: { y: 1 },
-      debug: false,
+      debug: true,
     },
   },
   scale: {

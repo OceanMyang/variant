@@ -20,7 +20,15 @@ export const CAT_HAND = 0x0010;
 
 export const MOVE_FORCE = 0.005;
 
+export const ITEM_THRESHOLD = 100;
+
 export const P_KATANA = 0.1;
 export const P_CHICKEN = 0.2;
 export const P_GEYSER = 0.2;
 export const P_DRESS = 0.2;
+export const P_SKATEBOARD = 0.1;
+
+// FNF-style arrow rhythm constants
+export const SKATE_ARROW_SPEED = 300; // px/s falling speed (constant, no acceleration)
+export const SKATE_SPAWN_INTERVAL = 1.2; // seconds between arrow spawns
+export const SKATE_HIT_WINDOW_PX = 50; // px tolerance at receptor

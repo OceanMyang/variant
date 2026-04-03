@@ -2,6 +2,37 @@ import { Physics } from "@esotericsoftware/spine-phaser-v4";
 import Phaser from "phaser";
 import { CAT_FLOOR, CAT_RAGDOLL, CAT_ROCK, CAT_WALL } from "./global";
 
+const DANCE_ANIMS = [
+  "Dance",
+  "Dance2",
+  "DanceEmote",
+  "DanceWithMic",
+  "Headbang",
+  "HipTwist",
+  "IndianClassicalDance",
+  "IndianClassicalDance2",
+  "JazzHands",
+  "Moonwalk",
+  "PunjabiDance",
+  "PunjabiDance2",
+  "PunjabiDanceNew",
+  "PunjabiDanceNew2",
+  "RRRDance",
+  "RRRDance1",
+  "RRRDance2",
+  "RRRDance3",
+  "TikTokDance",
+  "TikTokDance2",
+  "TikTokDance3",
+  "TikTokDance4",
+  "TikTokDance5",
+  "Thumka",
+  "Thumka2",
+  "Twerk",
+  "VickyKaushalDance",
+  "VickyKaushalDance2",
+];
+
 const S = 0.28;
 
 export class Hero {
@@ -35,14 +66,23 @@ export class Hero {
     if (this.torsoBody) this.torsoBody.force.x += force;
   }
 
+  setSide(side) {
+    this.spine.skeleton.scaleX =
+      side === "left"
+        ? -Math.abs(this.spine.skeleton.scaleX)
+        : Math.abs(this.spine.skeleton.scaleX);
+  }
+
   setup() {
     this.isEating = false;
     this.isGrabbing = false;
     this.isWearingDress = false;
+    this.isSkateboarding = false;
     this.dressVisual = null;
     this.dressTween = null;
     this.stamina = 1; // 0–1
-    this.grabTimer = 0; // hard 5s limit
+    this.grabTimer = 0;
+    this.skateRound = 0;
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
     }
@@ -101,10 +141,7 @@ export class Hero {
     this.grabSide = side;
 
     // Flip skeleton for left wall
-    this.spine.skeleton.scaleX =
-      side === "left"
-        ? -Math.abs(this.spine.skeleton.scaleX)
-        : Math.abs(this.spine.skeleton.scaleX);
+    this.setSide(side);
 
     // Store grab position — spine will render here while grabbing
     this.grabX = targetX;
@@ -170,6 +207,52 @@ export class Hero {
     }
 
     this.spine.animationState.setEmptyAnimation(0, 0);
+  }
+
+  startSkateboarding() {
+    if (
+      this.isSkateboarding ||
+      this.isEating ||
+      this.isGrabbing ||
+      this.isWearingDress
+    )
+      return;
+    this.isSkateboarding = true;
+    this.skateRound = 0;
+
+    const M = Phaser.Physics.Matter.Matter;
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, true);
+    }
+
+    this.spine.skeleton.setToSetupPose();
+    const anim = DANCE_ANIMS[Math.floor(Math.random() * DANCE_ANIMS.length)];
+    const entry = this.spine.animationState.setAnimation(0, anim, true);
+    entry.mixDuration = 0;
+  }
+
+  stopSkateboarding() {
+    this.isSkateboarding = false;
+
+    const M = Phaser.Physics.Matter.Matter;
+    for (const body of this.allBodies) {
+      M.Body.setStatic(body, false);
+    }
+
+    this.setSide("right");
+
+    for (const ik of this.spine.skeleton.ikConstraints) ik.mix = 0;
+    this.spine.animationState.setEmptyAnimation(0, 0);
+  }
+
+  // Called on a successful arrow hit
+  nextSkateRound() {
+    this.skateRound++;
+
+    // Pick a new random dance for variety
+    const anim = DANCE_ANIMS[Math.floor(Math.random() * DANCE_ANIMS.length)];
+    const entry = this.spine.animationState.setAnimation(0, anim, true);
+    entry.mixDuration = 0;
   }
 
   startEating() {
@@ -255,8 +338,8 @@ export class Hero {
         this.spine.y + bone.worldY * Math.abs(this.spine.scaleY);
     }
 
-    // While eating or wearing dress, animation drives bones — skip ragdoll overrides
-    if (this.isEating || this.isWearingDress) return;
+    // While eating, wearing dress, or skateboarding — animation drives bones
+    if (this.isEating || this.isWearingDress || this.isSkateboarding) return;
 
     // Drive torsoBone rotation from body angle
     const torso = this.spine.skeleton.findBone("torsoBone");
