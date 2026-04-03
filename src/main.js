@@ -19,6 +19,7 @@ import {
   P_KATANA,
   P_GEYSER,
   P_CHICKEN,
+  P_DRESS,
 } from "./global";
 
 class FallScene extends Phaser.Scene {
@@ -43,6 +44,7 @@ class FallScene extends Phaser.Scene {
       frameHeight: 351,
     });
     this.load.image("raindrop", "/spine/man/skeleton_4.png");
+    this.load.image("dress", "/spine/man/skeleton_6.png");
   }
 
   create() {
@@ -109,6 +111,17 @@ class FallScene extends Phaser.Scene {
         ) {
           const katanaBody = a === "katana" ? pair.bodyA : pair.bodyB;
           this._collectKatana(katanaBody);
+          break;
+        }
+
+        // Dress = wear
+        if (
+          !this.hero.isWearingDress &&
+          ((a === "dress" && this.hero.ownsLabel(b)) ||
+            (b === "dress" && this.hero.ownsLabel(a)))
+        ) {
+          const dressBody = a === "dress" ? pair.bodyA : pair.bodyB;
+          this._collectDress(dressBody);
           break;
         }
       }
@@ -497,17 +510,36 @@ class FallScene extends Phaser.Scene {
       objects.push({ visual, chickenBody });
     }
 
+    // Dress item
+    if (Math.random() < P_DRESS) {
+      const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
+      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+
+      const visual = this.add.image(cx, cy, "dress").setScale(0.12).setDepth(8);
+
+      const M = Phaser.Physics.Matter.Matter;
+      const dressBody = M.Bodies.circle(cx, cy, 40, {
+        isStatic: true,
+        isSensor: true,
+        label: "dress",
+      });
+      this.matter.world.add(dressBody);
+
+      objects.push({ visual, dressBody });
+    }
+
     this.generatedChunks.set(chunkIndex, objects);
   }
 
   destroyChunk(chunkIndex) {
     const objects = this.generatedChunks.get(chunkIndex);
     if (!objects) return;
-    objects.forEach(({ visual, rockBody, chickenBody, katanaBody }) => {
+    objects.forEach(({ visual, rockBody, chickenBody, katanaBody, dressBody }) => {
       visual.destroy();
       if (rockBody) this.matter.world.remove(rockBody);
       if (chickenBody) this.matter.world.remove(chickenBody);
       if (katanaBody) this.matter.world.remove(katanaBody);
+      if (dressBody) this.matter.world.remove(dressBody);
     });
     this.generatedChunks.delete(chunkIndex);
   }
@@ -616,6 +648,19 @@ class FallScene extends Phaser.Scene {
       }
     }
     this.hero.startEating();
+  }
+
+  _collectDress(dressBody) {
+    this.matter.world.remove(dressBody);
+    for (const [, objects] of this.generatedChunks) {
+      const idx = objects.findIndex((o) => o.dressBody === dressBody);
+      if (idx !== -1) {
+        objects[idx].visual.destroy();
+        objects.splice(idx, 1);
+        break;
+      }
+    }
+    this.hero.startDress();
   }
 
   // ==================== GAME OVER ====================

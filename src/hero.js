@@ -38,10 +38,58 @@ export class Hero {
   setup() {
     this.isEating = false;
     this.isGrabbing = false;
+    this.isWearingDress = false;
+    this.dressVisual = null;
+    this.dressTween = null;
     this.stamina = 1; // 0–1
     this.grabTimer = 0; // hard 5s limit
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
+    }
+  }
+
+  startDress() {
+    if (this.isWearingDress) return;
+    this.isWearingDress = true;
+
+    // Increase air friction on all bodies — slows terminal velocity like a parachute
+    for (const body of this.allBodies) {
+      body.frictionAir = 0.05;
+    }
+
+    // Play FallPose animation — ragdoll bone driving stops in update()
+    this.spine.skeleton.setToSetupPose();
+    const entry = this.spine.animationState.setAnimation(0, "FallPose", true);
+    entry.mixDuration = 0;
+
+    this.dressVisual = this.scene.add
+      .image(0, 0, "dress")
+      .setDepth(100)
+      .setScale(0.18, 0.1);
+
+    // No stretch animation — just a timer to remove the dress after 3s
+    this.dressTween = this.scene.time.delayedCall(3000, () => this.stopDress());
+  }
+
+  stopDress() {
+    this.isWearingDress = false;
+
+    // Restore original frictionAir
+    for (const body of this.allBodies) {
+      body.frictionAir = 0;
+    }
+
+    // Clear animation — ragdoll bone driving resumes
+    for (const ik of this.spine.skeleton.ikConstraints) ik.mix = 0;
+    this.spine.animationState.setEmptyAnimation(0, 0);
+
+    if (this.dressTween) {
+      this.dressTween.remove();
+      this.dressTween = null;
+    }
+    if (this.dressVisual) {
+      this.dressVisual.destroy();
+      this.dressVisual = null;
     }
   }
 
@@ -199,8 +247,16 @@ export class Hero {
     this.spine.x = this.hips.position.x;
     this.spine.y = this.hips.position.y + 150;
 
-    // While eating, SpineGameObject's preUpdate handles the animation — skip bone overrides
-    if (this.isEating) return;
+    // Keep dress visual attached to torsoBone world position
+    if (this.dressVisual) {
+      const bone = this.spine.skeleton.findBone("torsoBone");
+      this.dressVisual.x = this.spine.x + bone.worldX * this.spine.scaleX + 5;
+      this.dressVisual.y =
+        this.spine.y + bone.worldY * Math.abs(this.spine.scaleY);
+    }
+
+    // While eating or wearing dress, animation drives bones — skip ragdoll overrides
+    if (this.isEating || this.isWearingDress) return;
 
     // Drive torsoBone rotation from body angle
     const torso = this.spine.skeleton.findBone("torsoBone");
