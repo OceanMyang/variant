@@ -214,7 +214,10 @@ class FallScene extends Phaser.Scene {
     // --- Input ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.isGameOver) return;
+      if (this.isGameOver) {
+        window.location.reload();
+        return;
+      }
       if (this.hero?.isGrabbing) {
         this.hero.onSpacePressed();
         return;
@@ -979,12 +982,12 @@ class FallScene extends Phaser.Scene {
       this.gameOverText.setText("Oops. You hit your head.\n" + `Score: 0.\n`);
     } else {
       const v = this.hero.torsoBody.velocity.y;
-      const score =
-        (Math.floor(this.survivedTime * 100) * 10) / Math.max(v, 10);
+      const score = Math.floor(this.survivedTime * 100) * (1 - v / 100);
       this.gameOverText.setText("GAME OVER\n" + `Score: ${score.toFixed(0)}\n`);
       this.gameOverSubText.setText(
         `You hit the ground at ${v.toFixed(2)}m/s.\n` +
-          "Stay longer next time!",
+          "Stay longer next time!\n" +
+          "\nPress SPACE to restart",
       );
     }
     this.gameOverText.setVisible(true);

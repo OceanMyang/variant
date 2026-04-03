@@ -1,7 +1,7 @@
 // global.js
 export const VIEW_W = 720;
 export const VIEW_H = 1280;
-export const WORLD_H = 20000;
+export const WORLD_H = 30000;
 export const WALL_W = 40;
 
 export const CHUNK_H = VIEW_H;
@@ -20,13 +20,13 @@ export const CAT_HAND = 0x0010;
 
 export const MOVE_FORCE = 0.005;
 
-export const ITEM_THRESHOLD = 200;
+export const ITEM_THRESHOLD = 300;
 
 export const P_KATANA = 0.15;
 export const P_CHICKEN = 0.2;
 export const P_GEYSER = 0.2;
 export const P_DRESS = 0.1;
-export const P_SKATEBOARD = 0.05;
+export const P_SKATEBOARD = 0.03;
 
 // FNF-style arrow rhythm constants
 export const SKATE_ARROW_SPEED = 300; // px/s falling speed (constant, no acceleration)
