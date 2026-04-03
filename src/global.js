@@ -1,7 +1,7 @@
 // game viewport
 export const VIEW_W = 720;
 export const VIEW_H = 1280;
-export const WORLD_H = 30000;
+export const WORLD_H = 40000;
 export const WALL_W = 40;
 
 // chunk generation configuration
