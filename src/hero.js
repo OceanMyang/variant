@@ -132,18 +132,18 @@ export class Hero {
     this.spine.animationState.clearTrack(0);
   }
 
-  // Each space press restores stamina — increment shrinks as time approaches 5s
+  // Each space press restores stamina by a flat 5%
   onSpacePressed() {
     if (!this.isGrabbing) return;
-    const increment = 0.01 + Math.max(0, 0.09 * (1 - this.grabTimer / 5));
-    this.stamina = Math.min(1, this.stamina + increment);
+    this.stamina = Math.min(1, this.stamina + 0.05);
   }
 
   updateGrabbing(deltaMs) {
     if (!this.isGrabbing) return;
 
     const dt = deltaMs / 1000;
-    const DRAIN_RATE = 0.35; // empties in ~2.9s without pressing
+    // Drain accelerates the longer the player holds — starts gentle, gets punishing
+    const DRAIN_RATE = 0.15 + this.grabTimer * 0.1;
 
     this.stamina -= DRAIN_RATE * dt;
     this.grabTimer += dt;

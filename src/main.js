@@ -166,9 +166,15 @@ class FallScene extends Phaser.Scene {
       }
       if (this.matter.world.enabled) {
         this.matter.world.pause();
+        this.time.paused = true;
+        this.tweens.pauseAll();
+        if (this.hero?.spine) this.hero.spine.animationState.timeScale = 0;
         this.pauseText.setVisible(true);
       } else {
         this.matter.world.resume();
+        this.time.paused = false;
+        this.tweens.resumeAll();
+        if (this.hero?.spine) this.hero.spine.animationState.timeScale = 1;
         this.pauseText.setVisible(false);
       }
     });
@@ -351,32 +357,34 @@ class FallScene extends Phaser.Scene {
         )
       );
 
-      // Anchor image center closer to the handle so blade is mostly inside wall
-      const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
+      if (ky < WORLD_H - 100) {
+        // Anchor image center closer to the handle so blade is mostly inside wall
+        const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
 
-      // Blade faces wall, handle sticks into playfield
-      // Image: handle on left, tip on right at native resolution
-      // Left wall  → flip so tip points left (into wall), handle points right
-      // Right wall → no flip, tip points right (into wall), handle points left
-      const scale = 0.18;
-      const angleDeg = side === "left" ? -15 : 15;
-      const kVisual = this.add
-        .image(kx, ky, "katana")
-        .setScale(scale)
-        .setAngle(angleDeg)
-        .setFlipX(side === "left")
-        .setDepth(8);
+        // Blade faces wall, handle sticks into playfield
+        // Image: handle on left, tip on right at native resolution
+        // Left wall  → flip so tip points left (into wall), handle points right
+        // Right wall → no flip, tip points right (into wall), handle points left
+        const scale = 0.18;
+        const angleDeg = side === "left" ? -15 : 15;
+        const kVisual = this.add
+          .image(kx, ky, "katana")
+          .setScale(scale)
+          .setAngle(angleDeg)
+          .setFlipX(side === "left")
+          .setDepth(8);
 
-      const M = Phaser.Physics.Matter.Matter;
-      const katanaBody = M.Bodies.rectangle(kx, ky, 180, 20, {
-        isStatic: true,
-        isSensor: true,
-        label: "katana",
-        angle: Phaser.Math.DegToRad(angleDeg),
-      });
-      this.matter.world.add(katanaBody);
+        const M = Phaser.Physics.Matter.Matter;
+        const katanaBody = M.Bodies.rectangle(kx, ky, 180, 20, {
+          isStatic: true,
+          isSensor: true,
+          label: "katana",
+          angle: Phaser.Math.DegToRad(angleDeg),
+        });
+        this.matter.world.add(katanaBody);
 
-      objects.push({ visual: kVisual, katanaBody });
+        objects.push({ visual: kVisual, katanaBody });
+      } // end ky < WORLD_H - 100
     }
 
     if (Math.random() < P_GEYSER && chunkTop < WORLD_H - 200) {
@@ -395,137 +403,144 @@ class FallScene extends Phaser.Scene {
             wy <= o.rockBody.bounds.max.y + 80,
         )
       );
-      const burstLen = 160;
-      const burstH = 70;
-      const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
-      const cx = startX + burstLen / 2;
+      if (wy < WORLD_H - 100) {
+        const burstLen = 160;
+        const burstH = 70;
+        const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
+        const cx = startX + burstLen / 2;
 
-      // After rotating ±90°, the frame's height becomes the visual width on screen.
-      // Position center so the source edge sits exactly at the wall.
-      const GEYSER_SCALE = 0.9;
-      const GEYSER_WIDTH = 120;
-      const geyserAngle = side === "left" ? -90 : 90;
-      const geyserCX =
-        side === "left"
-          ? WALL_W + GEYSER_WIDTH * GEYSER_SCALE
-          : VIEW_W - WALL_W - GEYSER_WIDTH * GEYSER_SCALE;
-      const waterG = this.add
-        .sprite(geyserCX, wy, "geyser", 0)
-        .setDepth(7)
-        .setScale(GEYSER_SCALE)
-        .setAngle(geyserAngle - 7);
+        // After rotating ±90°, the frame's height becomes the visual width on screen.
+        // Position center so the source edge sits exactly at the wall.
+        const GEYSER_SCALE = 0.9;
+        const GEYSER_WIDTH = 120;
+        const geyserAngle = side === "left" ? -90 : 90;
+        const geyserCX =
+          side === "left"
+            ? WALL_W + GEYSER_WIDTH * GEYSER_SCALE
+            : VIEW_W - WALL_W - GEYSER_WIDTH * GEYSER_SCALE;
+        const waterG = this.add
+          .sprite(geyserCX, wy, "geyser", 0)
+          .setDepth(7)
+          .setScale(GEYSER_SCALE)
+          .setAngle(geyserAngle - 7);
 
-      let animFrame = 0;
-      const waterTimer = this.time.addEvent({
-        delay: 150,
-        callback: () => {
-          animFrame = (animFrame + 1) % 4;
-          waterG.setFrame(animFrame);
-        },
-        loop: true,
-      });
-
-      // Raindrop spawner — skeleton_4.png sprites that tween downward and self-destroy
-      const rainStartY = wy + burstH / 2;
-      const spawnRaindrop = () => {
-        if (!waterG.active) return;
-        const rd = this.add
-          .image(
-            cx + Phaser.Math.Between(-burstLen * 1.2, burstLen * 1.2),
-            rainStartY,
-            "raindrop",
-          )
-          .setScale(0.15)
-          .setDepth(6);
-        this.tweens.add({
-          targets: rd,
-          y: rainStartY + Phaser.Math.Between(400, 700),
-          alpha: 0,
-          duration: Phaser.Math.Between(1200, 2200),
-          ease: "Linear",
-          onComplete: () => rd.destroy(),
+        let animFrame = 0;
+        const waterTimer = this.time.addEvent({
+          delay: 150,
+          callback: () => {
+            animFrame = (animFrame + 1) % 4;
+            waterG.setFrame(animFrame);
+          },
+          loop: true,
         });
-      };
-      const rainTimer = this.time.addEvent({
-        delay: 100,
-        callback: spawnRaindrop,
-        loop: true,
-      });
 
-      // Physics sensor collider
-      const M = Phaser.Physics.Matter.Matter;
-      const geyserBody = M.Bodies.rectangle(geyserCX, wy, 280, 120, {
-        isStatic: true,
-        isSensor: true,
-        label: "geyser",
-        collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
-      });
-      geyserBody.geyserSide = side;
-      this.matter.world.add(geyserBody);
+        // Raindrop spawner — skeleton_4.png sprites that tween downward and self-destroy
+        const rainStartY = wy + burstH / 2;
+        const spawnRaindrop = () => {
+          if (!waterG.active) return;
+          const rd = this.add
+            .image(
+              cx + Phaser.Math.Between(-burstLen * 1.2, burstLen * 1.2),
+              rainStartY,
+              "raindrop",
+            )
+            .setScale(0.15)
+            .setDepth(6);
+          this.tweens.add({
+            targets: rd,
+            y: rainStartY + Phaser.Math.Between(400, 700),
+            alpha: 0,
+            duration: Phaser.Math.Between(1200, 2200),
+            ease: "Linear",
+            onComplete: () => rd.destroy(),
+          });
+        };
+        const rainTimer = this.time.addEvent({
+          delay: 100,
+          callback: spawnRaindrop,
+          loop: true,
+        });
 
-      // Zone bounds for per-frame force checks (no physics body needed)
-      const waterZoneData = {
-        minX: startX,
-        maxX: startX + burstLen,
-        minY: wy - burstH / 2,
-        maxY: wy + burstH / 2,
-        side,
-      };
-      const rainZoneData = {
-        minX: startX - 20,
-        maxX: startX + burstLen + 20,
-        minY: wy + burstH / 2,
-        maxY: wy + burstH / 2 + 500,
-      };
-      this.waterZones.push(waterZoneData);
-      this.rainZones.push(rainZoneData);
+        // Physics sensor collider
+        const M = Phaser.Physics.Matter.Matter;
+        const geyserBody = M.Bodies.rectangle(geyserCX, wy, 280, 120, {
+          isStatic: true,
+          isSensor: true,
+          label: "geyser",
+          collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
+        });
+        geyserBody.geyserSide = side;
+        this.matter.world.add(geyserBody);
 
-      objects.push({
-        visual: waterG,
-        waterTimer,
-        rainTimer,
-        geyserBody,
-        waterZoneData,
-        rainZoneData,
-      });
+        // Zone bounds for per-frame force checks (no physics body needed)
+        const waterZoneData = {
+          minX: startX,
+          maxX: startX + burstLen,
+          minY: wy - burstH / 2,
+          maxY: wy + burstH / 2,
+          side,
+        };
+        const rainZoneData = {
+          minX: startX - 20,
+          maxX: startX + burstLen + 20,
+          minY: wy + burstH / 2,
+          maxY: wy + burstH / 2 + 500,
+        };
+        this.waterZones.push(waterZoneData);
+        this.rainZones.push(rainZoneData);
+
+        objects.push({
+          visual: waterG,
+          waterTimer,
+          rainTimer,
+          geyserBody,
+          waterZoneData,
+          rainZoneData,
+        });
+      } // end wy < WORLD_H - 100
     }
 
     if (Math.random() < P_CHICKEN) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+      if (cy < WORLD_H - 100) {
+        const visual = this.add
+          .image(cx, cy, "chicken")
+          .setScale(0.2)
+          .setDepth(8);
 
-      const visual = this.add
-        .image(cx, cy, "chicken")
-        .setScale(0.2)
-        .setDepth(8);
+        const M = Phaser.Physics.Matter.Matter;
+        const chickenBody = M.Bodies.circle(cx, cy, 40, {
+          isStatic: true,
+          isSensor: true,
+          label: "chicken",
+        });
+        this.matter.world.add(chickenBody);
 
-      const M = Phaser.Physics.Matter.Matter;
-      const chickenBody = M.Bodies.circle(cx, cy, 40, {
-        isStatic: true,
-        isSensor: true,
-        label: "chicken",
-      });
-      this.matter.world.add(chickenBody);
-
-      objects.push({ visual, chickenBody });
+        objects.push({ visual, chickenBody });
+      } // end cy < WORLD_H - 100
     }
 
     // Dress item
     if (Math.random() < P_DRESS) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+      if (cy < WORLD_H - 100) {
+        const visual = this.add
+          .image(cx, cy, "dress")
+          .setScale(0.12)
+          .setDepth(8);
 
-      const visual = this.add.image(cx, cy, "dress").setScale(0.12).setDepth(8);
+        const M = Phaser.Physics.Matter.Matter;
+        const dressBody = M.Bodies.circle(cx, cy, 40, {
+          isStatic: true,
+          isSensor: true,
+          label: "dress",
+        });
+        this.matter.world.add(dressBody);
 
-      const M = Phaser.Physics.Matter.Matter;
-      const dressBody = M.Bodies.circle(cx, cy, 40, {
-        isStatic: true,
-        isSensor: true,
-        label: "dress",
-      });
-      this.matter.world.add(dressBody);
-
-      objects.push({ visual, dressBody });
+        objects.push({ visual, dressBody });
+      } // end cy < WORLD_H - 100
     }
 
     this.generatedChunks.set(chunkIndex, objects);
@@ -534,13 +549,15 @@ class FallScene extends Phaser.Scene {
   destroyChunk(chunkIndex) {
     const objects = this.generatedChunks.get(chunkIndex);
     if (!objects) return;
-    objects.forEach(({ visual, rockBody, chickenBody, katanaBody, dressBody }) => {
-      visual.destroy();
-      if (rockBody) this.matter.world.remove(rockBody);
-      if (chickenBody) this.matter.world.remove(chickenBody);
-      if (katanaBody) this.matter.world.remove(katanaBody);
-      if (dressBody) this.matter.world.remove(dressBody);
-    });
+    objects.forEach(
+      ({ visual, rockBody, chickenBody, katanaBody, dressBody }) => {
+        visual.destroy();
+        if (rockBody) this.matter.world.remove(rockBody);
+        if (chickenBody) this.matter.world.remove(chickenBody);
+        if (katanaBody) this.matter.world.remove(katanaBody);
+        if (dressBody) this.matter.world.remove(dressBody);
+      },
+    );
     this.generatedChunks.delete(chunkIndex);
   }
 
