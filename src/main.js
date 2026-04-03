@@ -124,7 +124,7 @@ class FallScene extends Phaser.Scene {
       if (this.hero?.isWearingDress) return;
       if (this.hero?.isSkateboarding) return;
       if (this.isEating) return;
-      if (this.isGrabbing) return;
+      if (this.isGrabbingKatana) return;
       for (const pair of event.pairs) {
         const a = pair.bodyA.label;
         const b = pair.bodyB.label;
@@ -183,7 +183,8 @@ class FallScene extends Phaser.Scene {
     });
 
     this.matter.world.on("collisionactive", (event) => {
-      if (this.isGameOver || this.hero.isGrabbing || this.hero.isEating) return;
+      if (this.isGameOver || this.hero.isGrabbingKatana || this.hero.isEating)
+        return;
       const M = Phaser.Physics.Matter.Matter;
       for (const pair of event.pairs) {
         const a = pair.bodyA.label;
@@ -214,14 +215,12 @@ class FallScene extends Phaser.Scene {
     // --- Input ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.isGameOver) {
-        window.location.reload();
-        return;
-      }
-      if (this.hero?.isGrabbing) {
-        this.hero.onSpacePressed();
-        return;
-      }
+      if (this.isGameOver) { window.location.reload(); return; }
+      if (this.hero?.isGrabbingKatana) { this.hero.onSpacePressed(); return; }
+    });
+
+    this.input.keyboard.on("keydown-ESC", () => {
+      if (this.isGameOver) return;
       if (this.matter.world.enabled) {
         this.matter.world.pause();
         this.time.paused = true;
@@ -724,7 +723,7 @@ class FallScene extends Phaser.Scene {
     else if (this.cursors.right.isDown) this.hero.pushRight(MOVE_FORCE);
 
     this.hero.update();
-    this.hero.updateGrabbing(deltaMs);
+    this.hero.updateGrabbingKatana(deltaMs);
     this._updateStaminaUI();
     this._updateSkateUI(deltaMs);
 
@@ -736,7 +735,7 @@ class FallScene extends Phaser.Scene {
   // ==================== STAMINA UI ====================
 
   _updateStaminaUI() {
-    const grabbing = this.hero.isGrabbing;
+    const grabbing = this.hero.isGrabbingKatana;
     this.staminaGraphics.setVisible(grabbing);
     this.staminaLabel.setVisible(grabbing);
     if (!grabbing) return;
@@ -783,7 +782,7 @@ class FallScene extends Phaser.Scene {
     this.matter.world.remove(katanaBody);
     const { x, y } = katanaBody.position;
     const side = x < VIEW_W / 2 ? "left" : "right";
-    this.hero.startGrabbing(x, y, side);
+    this.hero.startGrabbingKatana(x, y, side);
   }
 
   // ==================== CHICKEN ====================

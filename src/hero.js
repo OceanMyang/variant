@@ -2,6 +2,7 @@ import { Physics } from "@esotericsoftware/spine-phaser-v4";
 import Phaser from "phaser";
 import { CAT_FLOOR, CAT_RAGDOLL, CAT_ROCK, CAT_WALL } from "./global";
 
+// Used for Spine to dance on the skateboard
 const DANCE_ANIMS = [
   "Dance",
   "Dance2",
@@ -33,6 +34,7 @@ const DANCE_ANIMS = [
   "VickyKaushalDance2",
 ];
 
+// Scale of Spine character
 const S = 0.28;
 
 export class Hero {
@@ -55,6 +57,7 @@ export class Hero {
     return this.torsoBody?.position.y ?? 0;
   }
 
+  // Check if the collision involves a ragdoll collider
   ownsLabel(label) {
     return this.allBodies.some((b) => b.label === label);
   }
@@ -66,6 +69,7 @@ export class Hero {
     if (this.torsoBody) this.torsoBody.force.x += force;
   }
 
+  // Flip Spine character horizontally
   setSide(side) {
     this.spine.skeleton.scaleX =
       side === "left"
@@ -75,7 +79,7 @@ export class Hero {
 
   setup() {
     this.isEating = false;
-    this.isGrabbing = false;
+    this.isGrabbingKatana = false;
     this.isWearingDress = false;
     this.isSkateboarding = false;
     this.dressVisual = null;
@@ -83,6 +87,7 @@ export class Hero {
     this.stamina = 1; // 0–1
     this.grabTimer = 0;
     this.skateRound = 0;
+    // remove ikconstraints for ragdoll physics
     for (const ik of this.spine.skeleton.ikConstraints) {
       ik.mix = 0;
     }
@@ -107,7 +112,7 @@ export class Hero {
       .setDepth(50)
       .setScale(0.18, 0.1);
 
-    // No stretch animation — just a timer to remove the dress after 3s
+    // Remove the dress after 3s
     this.dressTween = this.scene.time.delayedCall(3000, () => this.stopDress());
   }
 
@@ -133,9 +138,9 @@ export class Hero {
     }
   }
 
-  startGrabbing(targetX, targetY, side = "right") {
-    if (this.isGrabbing || this.isEating) return;
-    this.isGrabbing = true;
+  startGrabbingKatana(targetX, targetY, side = "right") {
+    if (this.isGrabbingKatana || this.isEating) return;
+    this.isGrabbingKatana = true;
     this.stamina = 1;
     this.grabTimer = 0;
     this.grabSide = side;
@@ -154,8 +159,7 @@ export class Hero {
 
     this.spine.skeleton.setToSetupPose();
 
-    // Apply FacepalmDouble at 25% of its duration, then clear the track
-    // so preUpdate has nothing to apply and bones stay frozen at this pose
+    // Play FacepalmDouble at 25%. This is a grabbing pose.
     const anim = this.spine.skeleton.data.findAnimation("FacepalmDouble");
     const entry = this.spine.animationState.setAnimation(
       0,
@@ -169,17 +173,18 @@ export class Hero {
     this.spine.animationState.clearTrack(0);
   }
 
+  // During grabbing katana
   // Each space press restores stamina by a flat 5%
   onSpacePressed() {
-    if (!this.isGrabbing) return;
+    if (!this.isGrabbingKatana) return;
     this.stamina = Math.min(1, this.stamina + 0.05);
   }
 
-  updateGrabbing(deltaMs) {
-    if (!this.isGrabbing) return;
+  updateGrabbingKatana(deltaMs) {
+    if (!this.isGrabbingKatana) return;
 
     const dt = deltaMs / 1000;
-    // Drain accelerates the longer the player holds — starts gentle, gets punishing
+    // Stamina drain accelerates the longer the player holds — starts gentle, gets punishing
     const DRAIN_RATE = 0.15 + this.grabTimer * 0.1;
 
     this.stamina -= DRAIN_RATE * dt;
@@ -187,12 +192,12 @@ export class Hero {
 
     if (this.stamina <= 0) {
       this.stamina = 0;
-      this.stopGrabbing();
+      this.stopGrabbingKatana();
     }
   }
 
-  stopGrabbing() {
-    this.isGrabbing = false;
+  stopGrabbingKatana() {
+    this.isGrabbingKatana = false;
 
     // Reset skeleton flip
     this.spine.skeleton.scaleX = Math.abs(this.spine.skeleton.scaleX);
@@ -213,7 +218,7 @@ export class Hero {
     if (
       this.isSkateboarding ||
       this.isEating ||
-      this.isGrabbing ||
+      this.isGrabbingKatana ||
       this.isWearingDress
     )
       return;
@@ -239,7 +244,7 @@ export class Hero {
       M.Body.setStatic(body, false);
     }
 
-    this.setSide("right");
+    this.spine.skeleton.scaleX = Math.abs(this.spine.skeleton.scaleX);
 
     for (const ik of this.spine.skeleton.ikConstraints) ik.mix = 0;
     this.spine.animationState.setEmptyAnimation(0, 0);
@@ -321,18 +326,18 @@ export class Hero {
     if (!this.spine?.skeleton) return;
 
     // While grabbing, pin spine to the katana position instead of hips
-    if (this.isGrabbing) {
+    if (this.isGrabbingKatana) {
       const xOffset = this.grabSide === "left" ? 80 : -80;
       this.spine.x = this.grabX + xOffset;
       this.spine.y = this.grabY + 300;
       return;
     }
 
-    // Hips body is the root of the spine
+    // Move Spine character to Ragdoll position
     this.spine.x = this.hips.position.x;
     this.spine.y = this.hips.position.y + 150;
 
-    // Keep dress visual attached to torsoBone world position
+    // Keep dress visual attached to Spine character waist
     if (this.dressVisual) {
       const bone = this.spine.skeleton.findBone("torsoBone");
       this.dressVisual.x = this.spine.x + bone.worldX * this.spine.scaleX + 5;
@@ -343,7 +348,7 @@ export class Hero {
     // While eating, wearing dress, or skateboarding — animation drives bones
     if (this.isEating || this.isWearingDress || this.isSkateboarding) return;
 
-    // Drive torsoBone rotation from body angle
+    // Sync Spine bone rotations with Ragdoll limbs (mostly sync rotations)
     const torso = this.spine.skeleton.findBone("torsoBone");
     torso.rotation = -Phaser.Math.RadToDeg(this.torsoBody.angle) + 90;
 
@@ -360,7 +365,6 @@ export class Hero {
     const rightFeetBone = this.spine.skeleton.findBone("rightFeetBone");
     rightFeetBone.rotation = -Phaser.Math.RadToDeg(this.rightLeg.angle) + 90;
 
-    // Left leg
     const leftLeg = this.spine.skeleton.findBone("leftHipBone");
     leftLeg.rotation = -Phaser.Math.RadToDeg(
       this.leftLeg.angle - this.torsoBody.angle,
@@ -374,13 +378,11 @@ export class Hero {
     const leftFeetBone = this.spine.skeleton.findBone("leftFeetBone");
     leftFeetBone.rotation = -Phaser.Math.RadToDeg(this.leftLeg.angle) + 90;
 
-    // Right arm
     const rightHandUp = this.spine.skeleton.findBone("rightHandUp");
     rightHandUp.rotation = -Phaser.Math.RadToDeg(
       this.rightUpperArm.angle - this.torsoBody.angle,
     );
 
-    // Left arm
     const leftHandUp = this.spine.skeleton.findBone("leftHandUp"); // FIX: was "rightHandUp"
     leftHandUp.rotation = -Phaser.Math.RadToDeg(
       this.leftUpperArm.angle - this.torsoBody.angle,
@@ -395,10 +397,7 @@ export class Hero {
     this.spine.animationState.data.defaultMix = 0.15;
   }
 
-  _angle(angle) {
-    return Phaser.Math.Angle.Normalize(angle);
-  }
-
+  // create ragdoll counterpart for Spine character with Matter.js
   _createBody(x, y) {
     const M = Phaser.Physics.Matter.Matter;
 
@@ -418,7 +417,7 @@ export class Hero {
       collisionFilter: 0,
     });
 
-    const head = M.Bodies.rectangle(x, y - 100, 40, 40, {
+    const head = M.Bodies.rectangle(x, y - 100, 30, 30, {
       label: "head",
       frictionAir: 0,
       collisionFilter: filter,
@@ -454,16 +453,6 @@ export class Hero {
       collisionFilter: filter,
     });
 
-    const rightFoot = M.Bodies.rectangle(x - 10, y + 80, 20, 10, {
-      label: "rightFoot",
-      collisionFilter: 0,
-    });
-
-    const leftFoot = M.Bodies.rectangle(x + 10, y + 80, 20, 10, {
-      label: "leftFoot",
-      collisionFilter: 0,
-    });
-
     const rightUpperArm = M.Bodies.rectangle(x - 20, y - 80, 10, 120, {
       label: "rightUpperArm",
       collisionFilter: handFilter,
@@ -479,12 +468,30 @@ export class Hero {
     this.scene.matter.world.add(torso);
     this.scene.matter.world.add(rightLeg);
     this.scene.matter.world.add(rightFibula);
-    this.scene.matter.world.add(rightFoot);
     this.scene.matter.world.add(leftLeg);
     this.scene.matter.world.add(leftFibula);
-    this.scene.matter.world.add(leftFoot);
     this.scene.matter.world.add(rightUpperArm);
     this.scene.matter.world.add(leftUpperArm);
+
+    this.torsoBody = torso;
+    this.hips = hips;
+    this.rightLeg = rightLeg;
+    this.rightFibula = rightFibula;
+    this.leftLeg = leftLeg;
+    this.leftFibula = leftFibula;
+    this.rightUpperArm = rightUpperArm;
+    this.leftUpperArm = leftUpperArm;
+    this.allBodies = [
+      hips,
+      head,
+      torso,
+      rightLeg,
+      rightFibula,
+      leftLeg,
+      leftFibula,
+      rightUpperArm,
+      leftUpperArm,
+    ];
 
     this.scene.matter.add.constraint(hips, torso, 0, 1, {
       pointA: { x: 0, y: -20 },
@@ -493,7 +500,7 @@ export class Hero {
     });
 
     this.scene.matter.add.constraint(head, torso, 0, 1, {
-      pointA: { x: 0, y: 20 },
+      pointA: { x: 0, y: 15 },
       pointB: { x: 0, y: -40 },
       damping: 1,
     });
@@ -522,52 +529,16 @@ export class Hero {
       damping: 0.1,
     });
 
-    this.scene.matter.add.constraint(rightFibula, rightFoot, 0, 1, {
-      pointA: { x: 0, y: -30 },
-      pointB: { x: 0, y: 5 },
-      damping: 0.1,
-    });
-
-    this.scene.matter.add.constraint(leftFibula, leftFoot, 0, 1, {
-      pointA: { x: 0, y: -30 },
-      pointB: { x: 0, y: 5 },
-      damping: 0.1,
-    });
-
-    // Right arm: attach to top of torso
     this.scene.matter.add.constraint(torso, rightUpperArm, 0, 1, {
       pointA: { x: -20, y: -20 },
       pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
 
-    // Left arm: attach to top of torso
     this.scene.matter.add.constraint(torso, leftUpperArm, 0, 1, {
       pointA: { x: 20, y: -20 },
       pointB: { x: 0, y: 60 },
       damping: 0.1,
     });
-
-    this.torsoBody = torso;
-    this.hips = hips;
-    this.rightLeg = rightLeg;
-    this.rightFibula = rightFibula;
-    this.leftLeg = leftLeg;
-    this.leftFibula = leftFibula;
-    this.rightUpperArm = rightUpperArm;
-    this.leftUpperArm = leftUpperArm;
-    this.allBodies = [
-      hips,
-      head,
-      torso,
-      rightLeg,
-      rightFibula,
-      rightFoot,
-      leftLeg,
-      leftFibula,
-      leftFoot,
-      rightUpperArm,
-      leftUpperArm,
-    ];
   }
 }
