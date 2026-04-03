@@ -22,11 +22,11 @@ export const MOVE_FORCE = 0.005;
 
 export const ITEM_THRESHOLD = 100;
 
-export const P_KATANA = 0.1;
-export const P_CHICKEN = 0.2;
-export const P_GEYSER = 0.2;
-export const P_DRESS = 0.2;
-export const P_SKATEBOARD = 0.1;
+export const P_KATANA = 0.0;
+export const P_CHICKEN = 0.5;
+export const P_GEYSER = 0.0;
+export const P_DRESS = 0.0;
+export const P_SKATEBOARD = 0.3;
 
 // FNF-style arrow rhythm constants
 export const SKATE_ARROW_SPEED = 300; // px/s falling speed (constant, no acceleration)

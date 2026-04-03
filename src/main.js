@@ -631,7 +631,7 @@ class FallScene extends Phaser.Scene {
           .setDepth(8);
 
         const M = Phaser.Physics.Matter.Matter;
-        const skateBody = M.Bodies.rectangle(cx, cy, 104, 20, {
+        const skateBody = M.Bodies.rectangle(cx, cy, 190, 55, {
           isStatic: true,
           isSensor: true,
           label: "skateboard",
@@ -813,13 +813,21 @@ class FallScene extends Phaser.Scene {
       this.hero.nextSkateRound();
       this.hero.setSide(side);
     } else {
-      this._skateFail();
+      // Highlight the closest arrow as the mistake
+      const closest = this.skateArrows.reduce(
+        (best, a) =>
+          !best ||
+          Math.abs(a.y - this.skateReceptorY) <
+            Math.abs(best.y - this.skateReceptorY)
+            ? a
+            : best,
+        null,
+      );
+      this._skateFail(closest);
     }
   }
 
-  _skateFail() {
-    for (const a of this.skateArrows) a.textObj.destroy();
-    this.skateArrows = [];
+  _skateFail(missedArrow = null) {
     this.hero.stopSkateboarding();
     this.skateLeftReceptor.setVisible(false);
     this.skateRightReceptor.setVisible(false);
@@ -827,6 +835,25 @@ class FallScene extends Phaser.Scene {
     if (this.skateVisual) {
       this.skateVisual.destroy();
       this.skateVisual = null;
+    }
+
+    // Destroy all arrows except the offending one
+    for (const a of this.skateArrows) {
+      if (a !== missedArrow) a.textObj.destroy();
+    }
+    this.skateArrows = [];
+
+    // Red fade-out on the missed/wrong arrow
+    if (missedArrow) {
+      missedArrow.textObj.setColor("#ff2222");
+      this.tweens.add({
+        targets: missedArrow.textObj,
+        alpha: 0,
+        y: missedArrow.textObj.y + 35,
+        duration: 500,
+        ease: "Power2",
+        onComplete: () => missedArrow.textObj.destroy(),
+      });
     }
   }
 
@@ -844,10 +871,10 @@ class FallScene extends Phaser.Scene {
 
     const dt = deltaMs / 1000;
 
-    // Positions relative to hero in screen space — hero is frozen so these are stable
-    const hsx = this.hero.x - this.cameras.main.scrollX;
-    const hsy = this.hero.y - this.cameras.main.scrollY;
-    const ry = hsy - 150; // receptor sits 200px above hero center
+    // Positions relative to skateboard in screen space
+    const hsx = this.skateVisual.x - this.cameras.main.scrollX;
+    const hsy = this.skateVisual.y - this.cameras.main.scrollY;
+    const ry = hsy - 350; // receptor sits above the skateboard
     const lx = hsx - 30;
     const rx = hsx + 30;
     const spawnY = ry - 420; // arrows travel 420px to reach receptor
@@ -884,8 +911,11 @@ class FallScene extends Phaser.Scene {
     }
 
     // Miss — arrow passed the receptor without a hit
-    if (this.skateArrows.some((a) => a.y > ry + SKATE_HIT_WINDOW_PX)) {
-      this._skateFail();
+    const missedArrow = this.skateArrows.find(
+      (a) => a.y > ry + SKATE_HIT_WINDOW_PX,
+    );
+    if (missedArrow) {
+      this._skateFail(missedArrow);
       return;
     }
 

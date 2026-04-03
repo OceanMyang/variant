@@ -281,6 +281,7 @@ export class Hero {
     // Play Eat animation once, then return to ragdoll (no crossfade from ragdoll state)
     const entry = this.spine.animationState.setAnimation(0, "Eat", false);
     entry.mixDuration = 0;
+    entry.timeScale = 2;
     const listener = {
       complete: (e) => {
         if (e === entry) {
@@ -312,7 +313,8 @@ export class Hero {
     if (slot) slot.setAttachment(null);
 
     // Clear animation so ragdoll bone overrides take full control
-    this.spine.animationState.setEmptyAnimation(0, 0);
+    const emptyEntry = this.spine.animationState.setEmptyAnimation(0, 0);
+    emptyEntry.timeScale = 1;
   }
 
   update() {
