@@ -628,10 +628,14 @@ class FallScene extends Phaser.Scene {
         "Oops. You hit your head.\n" + `Your survival score: 0.\n`,
       );
     } else {
+      const v = this.hero.torsoBody.velocity.y;
+      const score =
+        (Math.floor(this.survivedTime * 100) * 10) / Math.max(v, 10);
       this.gameOverText.setText(
         "GAME OVER\n" +
-          `Your score: ${Math.floor(this.survivedTime * 100)}.\n` +
-          "Try survive longer next time!",
+          `Final speed: ${v.toFixed(2)}\n` +
+          `Survival score: ${score.toFixed(0)}\n` +
+          "Stay longer next time!",
       );
     }
     this.gameOverText.setVisible(true);
