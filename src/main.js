@@ -88,37 +88,6 @@ class FallScene extends Phaser.Scene {
     // --- Hero ---
     this.hero = new Hero(this, VIEW_W / 2, 200);
 
-    // --- Movement hint ---
-    const hintStyle = {
-      fontSize: "52px",
-      color: "#ffffff",
-      stroke: "#000000",
-      strokeThickness: 3,
-      fontFamily: "system-ui, sans-serif",
-    };
-    const hintY = VIEW_H * 0.4 - 160;
-    const hintL = this.add
-      .text(VIEW_W / 2 - 70, hintY, "←", hintStyle)
-      .setOrigin(0.5, 0.5)
-      .setScrollFactor(0)
-      .setDepth(62);
-    const hintR = this.add
-      .text(VIEW_W / 2 + 70, hintY, "→", hintStyle)
-      .setOrigin(0.5, 0.5)
-      .setScrollFactor(0)
-      .setDepth(62);
-    this.tweens.add({
-      targets: [hintL, hintR],
-      alpha: 0,
-      delay: 1000,
-      duration: 500,
-      ease: "Power2",
-      onComplete: () => {
-        hintL.destroy();
-        hintR.destroy();
-      },
-    });
-
     // --- Collision events ---
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
@@ -320,6 +289,37 @@ class FallScene extends Phaser.Scene {
       .setDepth(61)
       .setVisible(false);
 
+    // --- Movement hint ---
+    const hintStyle = {
+      fontSize: "52px",
+      color: "#ffffff",
+      stroke: "#000000",
+      strokeThickness: 3,
+      fontFamily: "system-ui, sans-serif",
+    };
+    const hintY = VIEW_H * 0.4 - 160;
+    const hintL = this.add
+      .text(VIEW_W / 2 - 70, hintY, "←", hintStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62);
+    const hintR = this.add
+      .text(VIEW_W / 2 + 70, hintY, "→", hintStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62);
+    this.tweens.add({
+      targets: [hintL, hintR],
+      alpha: 0,
+      delay: 1000,
+      duration: 500,
+      ease: "Power2",
+      onComplete: () => {
+        hintL.destroy();
+        hintR.destroy();
+      },
+    });
+
     // Arrow rhythm UI for skateboard
     const receptorStyle = {
       fontSize: "52px",
@@ -461,234 +461,209 @@ class FallScene extends Phaser.Scene {
       y += spikeH + Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
     }
 
-    // Generate katanas pickups
-    if (Math.random() < P_KATANA) {
-      const side = Math.random() < 0.5 ? "left" : "right";
-      let ky;
-      let attempts = 0;
-      do {
-        ky = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-        attempts++;
-      } while (
-        attempts < 10 &&
-        objects.some(
-          (o) =>
-            o.rockBody &&
-            ky >= o.rockBody.bounds.min.y - 60 &&
-            ky <= o.rockBody.bounds.max.y + 60,
-        )
-      );
-
-      if (ky < WORLD_H - ITEM_THRESHOLD) {
-        // Anchor image center closer to the handle so blade is mostly inside wall
-        const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
-
-        // Blade faces wall, handle sticks into playfield
-        // Image: handle on left, tip on right at native resolution
-        // Left wall  → flip so tip points left (into wall), handle points right
-        // Right wall → no flip, tip points right (into wall), handle points left
-        const scale = 0.18;
-        const angleDeg = side === "left" ? -15 : 15;
-        const kVisual = this.add
-          .image(kx, ky, "katana")
-          .setScale(scale)
-          .setAngle(angleDeg)
-          .setFlipX(side === "left")
-          .setDepth(8);
-
-        const M = Phaser.Physics.Matter.Matter;
-        const katanaBody = M.Bodies.rectangle(kx, ky, 180, 20, {
-          isStatic: true,
-          isSensor: true,
-          label: "katana",
-          angle: Phaser.Math.DegToRad(angleDeg),
-        });
-        this.matter.world.add(katanaBody);
-
-        objects.push({ visual: kVisual, katanaBody });
-      } // end ky < WORLD_H - ITEM_THRESHOLD
-    }
-
-    // generate water geysers
-    if (Math.random() < P_GEYSER && chunkTop < WORLD_H - 200) {
-      const side = Math.random() < 0.5 ? "left" : "right";
-      let wy,
-        wyAttempts = 0;
-      do {
-        wy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-        wyAttempts++;
-      } while (
-        wyAttempts < 10 &&
-        objects.some(
-          (o) =>
-            o.rockBody &&
-            wy >= o.rockBody.bounds.min.y - 80 &&
-            wy <= o.rockBody.bounds.max.y + 80,
-        )
-      );
-      if (wy < WORLD_H - ITEM_THRESHOLD) {
-        const burstLen = 160;
-        const burstH = 70;
-        const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
-        const cx = startX + burstLen / 2;
-
-        // After rotating ±90°, the frame's height becomes the visual width on screen.
-        // Position center so the source edge sits exactly at the wall.
-        const GEYSER_SCALE = 0.9;
-        const GEYSER_WIDTH = 120;
-        const geyserAngle = side === "left" ? -90 : 90;
-        const geyserCX =
-          side === "left"
-            ? WALL_W + GEYSER_WIDTH * GEYSER_SCALE
-            : VIEW_W - WALL_W - GEYSER_WIDTH * GEYSER_SCALE;
-        const waterG = this.add
-          .sprite(geyserCX, wy, "geyser", 0)
-          .setDepth(7)
-          .setScale(GEYSER_SCALE)
-          .setAngle(geyserAngle - 7);
-
-        let animFrame = 0;
-        const waterTimer = this.time.addEvent({
-          delay: 150,
-          callback: () => {
-            animFrame = (animFrame + 1) % 4;
-            waterG.setFrame(animFrame);
-          },
-          loop: true,
-        });
-
-        // Raindrop spawner — skeleton_4.png sprites that tween downward and self-destroy
-        const rainStartY = wy + burstH / 2;
-        const spawnRaindrop = () => {
-          if (!waterG.active) return;
-          const rd = this.add
-            .image(
-              cx + Phaser.Math.Between(-burstLen * 1.2, burstLen * 1.2),
-              rainStartY,
-              "raindrop",
-            )
-            .setScale(0.15)
-            .setDepth(6);
-          this.tweens.add({
-            targets: rd,
-            y: rainStartY + Phaser.Math.Between(400, 700),
-            alpha: 0,
-            duration: Phaser.Math.Between(1200, 2200),
-            ease: "Linear",
-            onComplete: () => rd.destroy(),
-          });
-        };
-        const rainTimer = this.time.addEvent({
-          delay: 100,
-          callback: spawnRaindrop,
-          loop: true,
-        });
-
-        // Physics sensor collider
-        const M = Phaser.Physics.Matter.Matter;
-        const geyserBody = M.Bodies.rectangle(geyserCX, wy, 280, 120, {
-          isStatic: true,
-          isSensor: true,
-          label: "geyser",
-          collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
-        });
-        geyserBody.geyserSide = side;
-        this.matter.world.add(geyserBody);
-
-        // Zone bounds for per-frame force checks (no physics body needed)
-        const waterZoneData = {
-          minX: startX,
-          maxX: startX + burstLen,
-          minY: wy - burstH / 2,
-          maxY: wy + burstH / 2,
-          side,
-        };
-        const rainZoneData = {
-          minX: startX - 20,
-          maxX: startX + burstLen + 20,
-          minY: wy + burstH / 2,
-          maxY: wy + burstH / 2 + 500,
-        };
-        this.waterZones.push(waterZoneData);
-        this.rainZones.push(rainZoneData);
-
-        objects.push({
-          visual: waterG,
-          waterTimer,
-          rainTimer,
-          geyserBody,
-          waterZoneData,
-          rainZoneData,
-        });
-      } // end wy < WORLD_H - ITEM_THRESHOLD
-    }
-
-    // generate chicken pickup
-    if (Math.random() < P_CHICKEN) {
-      const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
-      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - ITEM_THRESHOLD) {
-        const visual = this.add
-          .image(cx, cy, "chicken")
-          .setScale(0.2)
-          .setDepth(8);
-
-        const M = Phaser.Physics.Matter.Matter;
-        const chickenBody = M.Bodies.circle(cx, cy, 40, {
-          isStatic: true,
-          isSensor: true,
-          label: "chicken",
-        });
-        this.matter.world.add(chickenBody);
-
-        objects.push({ visual, chickenBody });
-      } // end cy < WORLD_H - ITEM_THRESHOLD
-    }
-
-    // Generate dress items
-    if (Math.random() < P_DRESS) {
-      const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
-      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - ITEM_THRESHOLD) {
-        const visual = this.add
-          .image(cx, cy, "dress")
-          .setScale(0.12)
-          .setDepth(8);
-
-        const M = Phaser.Physics.Matter.Matter;
-        const dressBody = M.Bodies.circle(cx, cy, 40, {
-          isStatic: true,
-          isSensor: true,
-          label: "dress",
-        });
-        this.matter.world.add(dressBody);
-
-        objects.push({ visual, dressBody });
-      } // end cy < WORLD_H - ITEM_THRESHOLD
-    }
-
-    // Generate skateboard pickups
-    if (Math.random() < P_SKATEBOARD) {
-      const cx = Phaser.Math.Between(WALL_W + 80, VIEW_W - WALL_W - 80);
-      const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - ITEM_THRESHOLD) {
-        const g = this.add
-          .image(cx, cy, "skateboard")
-          .setScale(0.18)
-          .setDepth(8);
-
-        const M = Phaser.Physics.Matter.Matter;
-        const skateBody = M.Bodies.rectangle(cx, cy, 190, 55, {
-          isStatic: true,
-          isSensor: true,
-          label: "skateboard",
-        });
-        this.matter.world.add(skateBody);
-        objects.push({ visual: g, skateBody });
-      }
-    }
+    this._spawnKatana(chunkTop, objects);
+    if (chunkTop < WORLD_H - 200) this._spawnGeyser(chunkTop, objects);
+    this._spawnChicken(chunkTop, objects);
+    this._spawnDress(chunkTop, objects);
+    this._spawnSkateboard(chunkTop, objects);
 
     this.generatedChunks.set(chunkIndex, objects);
+  }
+
+  // Returns a Y within the chunk that avoids existing rock bodies, or the last attempt.
+  _safeY(chunkTop, objects, clearance = 60) {
+    let y,
+      attempts = 0;
+    do {
+      y = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+      attempts++;
+    } while (
+      attempts < 10 &&
+      objects.some(
+        (o) =>
+          o.rockBody &&
+          y >= o.rockBody.bounds.min.y - clearance &&
+          y <= o.rockBody.bounds.max.y + clearance,
+      )
+    );
+    return y;
+  }
+
+  _spawnKatana(chunkTop, objects) {
+    if (Math.random() >= P_KATANA) return;
+    const side = Math.random() < 0.5 ? "left" : "right";
+    const ky = this._safeY(chunkTop, objects, 60);
+    if (ky >= WORLD_H - ITEM_THRESHOLD) return;
+
+    const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
+    const angleDeg = side === "left" ? -15 : 15;
+    const kVisual = this.add
+      .image(kx, ky, "katana")
+      .setScale(0.18)
+      .setAngle(angleDeg)
+      .setFlipX(side === "left")
+      .setDepth(8);
+
+    const M = Phaser.Physics.Matter.Matter;
+    const katanaBody = M.Bodies.rectangle(kx, ky, 180, 20, {
+      isStatic: true,
+      isSensor: true,
+      label: "katana",
+      angle: Phaser.Math.DegToRad(angleDeg),
+    });
+    this.matter.world.add(katanaBody);
+    objects.push({ visual: kVisual, katanaBody });
+  }
+
+  _spawnGeyser(chunkTop, objects) {
+    if (Math.random() >= P_GEYSER) return;
+    const side = Math.random() < 0.5 ? "left" : "right";
+    const wy = this._safeY(chunkTop, objects, 80);
+    if (wy >= WORLD_H - ITEM_THRESHOLD) return;
+
+    const GEYSER_SCALE = 0.9;
+    const GEYSER_WIDTH = 120;
+    const burstLen = 160;
+    const burstH = 70;
+    const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
+    const cx = startX + burstLen / 2;
+    const geyserAngle = side === "left" ? -90 : 90;
+    const geyserCX =
+      side === "left"
+        ? WALL_W + GEYSER_WIDTH * GEYSER_SCALE
+        : VIEW_W - WALL_W - GEYSER_WIDTH * GEYSER_SCALE;
+
+    const waterG = this.add
+      .sprite(geyserCX, wy, "geyser", 0)
+      .setDepth(7)
+      .setScale(GEYSER_SCALE)
+      .setAngle(geyserAngle - 7);
+
+    let animFrame = 0;
+    const waterTimer = this.time.addEvent({
+      delay: 150,
+      loop: true,
+      callback: () => {
+        animFrame = (animFrame + 1) % 4;
+        waterG.setFrame(animFrame);
+      },
+    });
+
+    const rainStartY = wy + burstH / 2;
+    const rainTimer = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => {
+        if (!waterG.active) return;
+        const rd = this.add
+          .image(
+            cx + Phaser.Math.Between(-burstLen * 1.2, burstLen * 1.2),
+            rainStartY,
+            "raindrop",
+          )
+          .setScale(0.15)
+          .setDepth(6);
+        this.tweens.add({
+          targets: rd,
+          alpha: 0,
+          y: rainStartY + Phaser.Math.Between(400, 700),
+          duration: Phaser.Math.Between(1200, 2200),
+          ease: "Linear",
+          onComplete: () => rd.destroy(),
+        });
+      },
+    });
+
+    const M = Phaser.Physics.Matter.Matter;
+    const geyserBody = M.Bodies.rectangle(geyserCX, wy, 280, 120, {
+      isStatic: true,
+      isSensor: true,
+      label: "geyser",
+      collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
+    });
+    geyserBody.geyserSide = side;
+    this.matter.world.add(geyserBody);
+
+    const waterZoneData = {
+      minX: startX,
+      maxX: startX + burstLen,
+      minY: wy - burstH / 2,
+      maxY: wy + burstH / 2,
+      side,
+    };
+    const rainZoneData = {
+      minX: startX - 20,
+      maxX: startX + burstLen + 20,
+      minY: wy + burstH / 2,
+      maxY: wy + burstH / 2 + 500,
+    };
+    this.waterZones.push(waterZoneData);
+    this.rainZones.push(rainZoneData);
+    objects.push({
+      visual: waterG,
+      waterTimer,
+      rainTimer,
+      geyserBody,
+      waterZoneData,
+      rainZoneData,
+    });
+  }
+
+  _spawnChicken(chunkTop, objects) {
+    if (Math.random() >= P_CHICKEN) return;
+    const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
+    const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+    if (cy >= WORLD_H - ITEM_THRESHOLD) return;
+
+    const visual = this.add.image(cx, cy, "chicken").setScale(0.2).setDepth(8);
+    const chickenBody = Phaser.Physics.Matter.Matter.Bodies.circle(cx, cy, 40, {
+      isStatic: true,
+      isSensor: true,
+      label: "chicken",
+    });
+    this.matter.world.add(chickenBody);
+    objects.push({ visual, chickenBody });
+  }
+
+  _spawnDress(chunkTop, objects) {
+    if (Math.random() >= P_DRESS) return;
+    const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
+    const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+    if (cy >= WORLD_H - ITEM_THRESHOLD) return;
+
+    const visual = this.add.image(cx, cy, "dress").setScale(0.12).setDepth(8);
+    const dressBody = Phaser.Physics.Matter.Matter.Bodies.circle(cx, cy, 40, {
+      isStatic: true,
+      isSensor: true,
+      label: "dress",
+    });
+    this.matter.world.add(dressBody);
+    objects.push({ visual, dressBody });
+  }
+
+  _spawnSkateboard(chunkTop, objects) {
+    if (Math.random() >= P_SKATEBOARD) return;
+    const cx = Phaser.Math.Between(WALL_W + 80, VIEW_W - WALL_W - 80);
+    const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
+    if (cy >= WORLD_H - ITEM_THRESHOLD) return;
+
+    const visual = this.add
+      .image(cx, cy, "skateboard")
+      .setScale(0.18)
+      .setDepth(8);
+    const skateBody = Phaser.Physics.Matter.Matter.Bodies.rectangle(
+      cx,
+      cy,
+      190,
+      55,
+      {
+        isStatic: true,
+        isSensor: true,
+        label: "skateboard",
+      },
+    );
+    this.matter.world.add(skateBody);
+    objects.push({ visual, skateBody });
   }
 
   destroyChunk(chunkIndex) {
