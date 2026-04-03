@@ -64,7 +64,7 @@ export class Hero {
 
     this.dressVisual = this.scene.add
       .image(0, 0, "dress")
-      .setDepth(100)
+      .setDepth(50)
       .setScale(0.18, 0.1);
 
     // No stretch animation — just a timer to remove the dress after 3s

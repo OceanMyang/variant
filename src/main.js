@@ -79,6 +79,7 @@ class FallScene extends Phaser.Scene {
     // --- Collision events ---
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
+      if (this.hero?.isWearingDress) return;
       if (this.isEating) return;
       if (this.isGrabbing) return;
       for (const pair of event.pairs) {
@@ -191,8 +192,20 @@ class FallScene extends Phaser.Scene {
       .setDepth(50);
 
     this.gameOverText = this.add
-      .text(VIEW_W / 2, VIEW_H / 2, "", {
+      .text(VIEW_W / 2, VIEW_H / 2 - 40, "", {
         fontSize: "48px",
+        color: "#ffffff",
+        fontFamily: "system-ui, sans-serif",
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+
+    this.gameOverSubText = this.add
+      .text(VIEW_W / 2, VIEW_H / 2 + 40, "", {
+        fontSize: "24px",
         color: "#ffffff",
         fontFamily: "system-ui, sans-serif",
         align: "center",
@@ -585,7 +598,7 @@ class FallScene extends Phaser.Scene {
     if (!this.matter.world.enabled) return;
 
     this.survivedTime += deltaMs / 1000;
-    this.timerText.setText(`Your survived ${this.survivedTime.toFixed(2)}s.\n`);
+    this.timerText.setText(`You survived ${this.survivedTime.toFixed(2)}s.\n`);
 
     if (this.cursors.left.isDown) this.hero.pushLeft(MOVE_FORCE);
     else if (this.cursors.right.isDown) this.hero.pushRight(MOVE_FORCE);
@@ -694,13 +707,15 @@ class FallScene extends Phaser.Scene {
       const score =
         (Math.floor(this.survivedTime * 100) * 10) / Math.max(v, 10);
       this.gameOverText.setText(
-        "GAME OVER\n" +
-          `Final speed: ${v.toFixed(2)}\n` +
-          `Survival score: ${score.toFixed(0)}\n` +
+        "GAME OVER\n" + `Your survival score: ${score.toFixed(0)}\n`,
+      );
+      this.gameOverSubText.setText(
+        `You hit the ground at ${v.toFixed(2)}m/s.\n` +
           "Stay longer next time!",
       );
     }
     this.gameOverText.setVisible(true);
+    this.gameOverSubText.setVisible(true);
   }
 }
 
@@ -718,7 +733,7 @@ const config = {
     default: "matter",
     matter: {
       gravity: { y: 1 },
-      debug: true,
+      debug: false,
     },
   },
   scale: {
