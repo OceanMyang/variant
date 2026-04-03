@@ -87,6 +87,37 @@ class FallScene extends Phaser.Scene {
     // --- Hero ---
     this.hero = new Hero(this, VIEW_W / 2, 200);
 
+    // --- Movement hint ---
+    const hintStyle = {
+      fontSize: "52px",
+      color: "#ffffff",
+      stroke: "#000000",
+      strokeThickness: 3,
+      fontFamily: "system-ui, sans-serif",
+    };
+    const hintY = VIEW_H * 0.4 - 160;
+    const hintL = this.add
+      .text(VIEW_W / 2 - 70, hintY, "←", hintStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62);
+    const hintR = this.add
+      .text(VIEW_W / 2 + 70, hintY, "→", hintStyle)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(62);
+    this.tweens.add({
+      targets: [hintL, hintR],
+      alpha: 0,
+      delay: 1000,
+      duration: 500,
+      ease: "Power2",
+      onComplete: () => {
+        hintL.destroy();
+        hintR.destroy();
+      },
+    });
+
     // --- Collision events ---
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
@@ -370,7 +401,7 @@ class FallScene extends Phaser.Scene {
     }
 
     let y = chunkTop + Phaser.Math.Between(50, ROCK_GAP);
-    while (y < chunkBottom - 50 && y < WORLD_H - ITEM_THRESHOLD) {
+    while (y < chunkBottom - 50 && y < WORLD_H) {
       const fromLeft = Math.random() > 0.5;
       const angleDeg = Phaser.Math.Between(10, 35);
       const angleRad = Phaser.Math.DegToRad(angleDeg);
@@ -434,7 +465,7 @@ class FallScene extends Phaser.Scene {
         )
       );
 
-      if (ky < WORLD_H - 100) {
+      if (ky < WORLD_H - ITEM_THRESHOLD) {
         // Anchor image center closer to the handle so blade is mostly inside wall
         const kx = side === "left" ? WALL_W + 20 : VIEW_W - WALL_W - 20;
 
@@ -461,7 +492,7 @@ class FallScene extends Phaser.Scene {
         this.matter.world.add(katanaBody);
 
         objects.push({ visual: kVisual, katanaBody });
-      } // end ky < WORLD_H - 100
+      } // end ky < WORLD_H - ITEM_THRESHOLD
     }
 
     if (Math.random() < P_GEYSER && chunkTop < WORLD_H - 200) {
@@ -480,7 +511,7 @@ class FallScene extends Phaser.Scene {
             wy <= o.rockBody.bounds.max.y + 80,
         )
       );
-      if (wy < WORLD_H - 100) {
+      if (wy < WORLD_H - ITEM_THRESHOLD) {
         const burstLen = 160;
         const burstH = 70;
         const startX = side === "left" ? WALL_W : VIEW_W - WALL_W - burstLen;
@@ -574,13 +605,13 @@ class FallScene extends Phaser.Scene {
           waterZoneData,
           rainZoneData,
         });
-      } // end wy < WORLD_H - 100
+      } // end wy < WORLD_H - ITEM_THRESHOLD
     }
 
     if (Math.random() < P_CHICKEN) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - 100) {
+      if (cy < WORLD_H - ITEM_THRESHOLD) {
         const visual = this.add
           .image(cx, cy, "chicken")
           .setScale(0.2)
@@ -595,14 +626,14 @@ class FallScene extends Phaser.Scene {
         this.matter.world.add(chickenBody);
 
         objects.push({ visual, chickenBody });
-      } // end cy < WORLD_H - 100
+      } // end cy < WORLD_H - ITEM_THRESHOLD
     }
 
     // Dress item
     if (Math.random() < P_DRESS) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - 100) {
+      if (cy < WORLD_H - ITEM_THRESHOLD) {
         const visual = this.add
           .image(cx, cy, "dress")
           .setScale(0.12)
@@ -617,14 +648,14 @@ class FallScene extends Phaser.Scene {
         this.matter.world.add(dressBody);
 
         objects.push({ visual, dressBody });
-      } // end cy < WORLD_H - 100
+      } // end cy < WORLD_H - ITEM_THRESHOLD
     }
 
     // Skateboard item
     if (Math.random() < P_SKATEBOARD) {
       const cx = Phaser.Math.Between(WALL_W + 80, VIEW_W - WALL_W - 80);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
-      if (cy < WORLD_H - 100) {
+      if (cy < WORLD_H - ITEM_THRESHOLD) {
         const g = this.add
           .image(cx, cy, "skateboard")
           .setScale(0.18)
@@ -813,17 +844,25 @@ class FallScene extends Phaser.Scene {
       this.hero.nextSkateRound();
       this.hero.setSide(side);
     } else {
-      // Highlight the closest arrow as the mistake
-      const closest = this.skateArrows.reduce(
-        (best, a) =>
-          !best ||
-          Math.abs(a.y - this.skateReceptorY) <
-            Math.abs(best.y - this.skateReceptorY)
-            ? a
-            : best,
-        null,
-      );
-      this._skateFail(closest);
+      // Spawn a ghost arrow at the receptor to show the wrong press, then fail
+      const rx =
+        side === "left" ? this.skateLeftReceptor.x : this.skateRightReceptor.x;
+      const ghostArrow = {
+        side,
+        y: this.skateReceptorY,
+        textObj: this.add
+          .text(rx, this.skateReceptorY, side === "left" ? "←" : "→", {
+            fontSize: "52px",
+            color: "#ff2222",
+            stroke: "#000000",
+            strokeThickness: 3,
+            fontFamily: "system-ui, sans-serif",
+          })
+          .setOrigin(0.5, 0.5)
+          .setScrollFactor(0)
+          .setDepth(62),
+      };
+      this._skateFail(ghostArrow);
     }
   }
 
