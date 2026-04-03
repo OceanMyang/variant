@@ -19,3 +19,7 @@ export const CAT_RAGDOLL = 0x0008;
 export const CAT_HAND = 0x0010;
 
 export const MOVE_FORCE = 0.005;
+
+export const P_KATANA = 0.2;
+export const P_CHICKEN = 0.2;
+export const P_GEYSER = 0.2;

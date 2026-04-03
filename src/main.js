@@ -16,6 +16,9 @@ import {
   CAT_RAGDOLL,
   CAT_FLOOR,
   MOVE_FORCE,
+  P_KATANA,
+  P_GEYSER,
+  P_CHICKEN,
 } from "./global";
 
 class FallScene extends Phaser.Scene {
@@ -36,7 +39,7 @@ class FallScene extends Phaser.Scene {
     this.load.image("chicken", "/spine/man/skeleton_12.png");
     this.load.image("katana", "/spine/man/skeleton_14.png");
     this.load.spritesheet("geyser", "/spine/man/skeleton_9.png", {
-      frameWidth: 150,
+      frameWidth: 149,
       frameHeight: 351,
     });
     this.load.image("raindrop", "/spine/man/skeleton_4.png");
@@ -74,6 +77,8 @@ class FallScene extends Phaser.Scene {
     // --- Collision events ---
     this.matter.world.on("collisionstart", (event) => {
       if (this.isGameOver) return;
+      if (this.isEating) return;
+      if (this.isGrabbing) return;
       for (const pair of event.pairs) {
         const a = pair.bodyA.label;
         const b = pair.bodyB.label;
@@ -89,9 +94,8 @@ class FallScene extends Phaser.Scene {
 
         // Chicken = eat animation
         if (
-          !this.hero.isEating &&
-          ((a === "chicken" && this.hero.ownsLabel(b)) ||
-            (b === "chicken" && this.hero.ownsLabel(a)))
+          (a === "chicken" && this.hero.ownsLabel(b)) ||
+          (b === "chicken" && this.hero.ownsLabel(a))
         ) {
           const chickenBody = a === "chicken" ? pair.bodyA : pair.bodyB;
           this._collectChicken(chickenBody);
@@ -100,14 +104,38 @@ class FallScene extends Phaser.Scene {
 
         // Katana = grab
         if (
-          !this.hero.isGrabbing &&
-          !this.hero.isEating &&
-          ((a === "katana" && this.hero.ownsLabel(b)) ||
-            (b === "katana" && this.hero.ownsLabel(a)))
+          (a === "katana" && this.hero.ownsLabel(b)) ||
+          (b === "katana" && this.hero.ownsLabel(a))
         ) {
           const katanaBody = a === "katana" ? pair.bodyA : pair.bodyB;
           this._collectKatana(katanaBody);
           break;
+        }
+      }
+    });
+
+    this.matter.world.on("collisionactive", (event) => {
+      if (this.isGameOver || this.hero.isGrabbing || this.hero.isEating) return;
+      const M = Phaser.Physics.Matter.Matter;
+      for (const pair of event.pairs) {
+        const a = pair.bodyA.label;
+        const b = pair.bodyB.label;
+        if (
+          (a === "geyser" && this.hero.ownsLabel(b)) ||
+          (b === "geyser" && this.hero.ownsLabel(a))
+        ) {
+          const waterBody = a === "geyser" ? pair.bodyA : pair.bodyB;
+          if (waterBody.geyserSide === "left") {
+            M.Body.setVelocity(this.hero.torsoBody, {
+              x: 5,
+              y: this.hero.torsoBody.velocity.y / 2,
+            });
+          } else if (waterBody.geyserSide === "right") {
+            M.Body.setVelocity(this.hero.torsoBody, {
+              x: -5,
+              y: this.hero.torsoBody.velocity.y / 2,
+            });
+          }
         }
       }
     });
@@ -293,8 +321,7 @@ class FallScene extends Phaser.Scene {
       y += spikeH + Phaser.Math.Between(ROCK_GAP, ROCK_GAP * 2);
     }
 
-    // 30% chance to spawn one katana on a wall, avoiding rock y-ranges
-    if (Math.random() < 0.3) {
+    if (Math.random() < P_KATANA) {
       const side = Math.random() < 0.5 ? "left" : "right";
       let ky;
       let attempts = 0;
@@ -339,8 +366,7 @@ class FallScene extends Phaser.Scene {
       objects.push({ visual: kVisual, katanaBody });
     }
 
-    // 25% chance to spawn a water geyser on a wall
-    if (Math.random() < 0.25 && chunkTop < WORLD_H - 200) {
+    if (Math.random() < P_GEYSER && chunkTop < WORLD_H - 200) {
       const side = Math.random() < 0.5 ? "left" : "right";
       let wy,
         wyAttempts = 0;
@@ -363,7 +389,7 @@ class FallScene extends Phaser.Scene {
 
       // After rotating ±90°, the frame's height becomes the visual width on screen.
       // Position center so the source edge sits exactly at the wall.
-      const GEYSER_SCALE = 1.0;
+      const GEYSER_SCALE = 0.9;
       const GEYSER_WIDTH = 120;
       const geyserAngle = side === "left" ? -90 : 90;
       const geyserCX =
@@ -374,7 +400,7 @@ class FallScene extends Phaser.Scene {
         .sprite(geyserCX, wy, "geyser", 0)
         .setDepth(7)
         .setScale(GEYSER_SCALE)
-        .setAngle(geyserAngle);
+        .setAngle(geyserAngle - 7);
 
       let animFrame = 0;
       const waterTimer = this.time.addEvent({
@@ -413,6 +439,17 @@ class FallScene extends Phaser.Scene {
         loop: true,
       });
 
+      // Physics sensor collider
+      const M = Phaser.Physics.Matter.Matter;
+      const geyserBody = M.Bodies.rectangle(geyserCX, wy, 280, 120, {
+        isStatic: true,
+        isSensor: true,
+        label: "geyser",
+        collisionFilter: { category: CAT_WALL, mask: CAT_RAGDOLL },
+      });
+      geyserBody.geyserSide = side;
+      this.matter.world.add(geyserBody);
+
       // Zone bounds for per-frame force checks (no physics body needed)
       const waterZoneData = {
         minX: startX,
@@ -434,19 +471,19 @@ class FallScene extends Phaser.Scene {
         visual: waterG,
         waterTimer,
         rainTimer,
+        geyserBody,
         waterZoneData,
         rainZoneData,
       });
     }
 
-    // 40% chance to spawn one chicken per chunk
-    if (Math.random() < 0.4) {
+    if (Math.random() < P_CHICKEN) {
       const cx = Phaser.Math.Between(WALL_W + 60, VIEW_W - WALL_W - 60);
       const cy = chunkTop + Phaser.Math.Between(200, CHUNK_H - 200);
 
       const visual = this.add
         .image(cx, cy, "chicken")
-        .setScale(0.12)
+        .setScale(0.2)
         .setDepth(8);
 
       const M = Phaser.Physics.Matter.Matter;
@@ -586,17 +623,14 @@ class FallScene extends Phaser.Scene {
   endGame(headHit = false) {
     if (this.isGameOver) return;
     this.isGameOver = true;
-    this.timerText.setVisible(false);
     if (headHit) {
-      this.survivedTime = 0;
       this.gameOverText.setText(
-        "Oops. You hit your head.\n" +
-          `Your survived ${this.survivedTime.toFixed(2)}s.\n`,
+        "Oops. You hit your head.\n" + `Your survival score: 0.\n`,
       );
     } else {
       this.gameOverText.setText(
         "GAME OVER\n" +
-          `Your survived ${this.survivedTime.toFixed(2)}s.\n` +
+          `Your score: ${Math.floor(this.survivedTime * 100)}.\n` +
           "Try survive longer next time!",
       );
     }
